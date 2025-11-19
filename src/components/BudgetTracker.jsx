@@ -1,3 +1,4 @@
+// src/components/BudgetTracker.jsx
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Target, Edit2, Check, X, Zap, Calendar, Filter, Download, Search, AlertTriangle, CheckCircle, LogOut } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -36,10 +37,9 @@ export default function BudgetTracker({ user, onLogout }) {
 
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
 
-  // Load data from Firebase
   useEffect(() => {
     if (!user) return;
-
+    
     const transactionsRef = ref(database, `users/${user.uid}/transactions`);
     const targetsRef = ref(database, `users/${user.uid}/targets`);
 
@@ -48,12 +48,8 @@ export default function BudgetTracker({ user, onLogout }) {
       if (data && Array.isArray(data)) {
         setTransactions(data);
       } else if (data) {
-        // Handle if data is object, convert to array
         setTransactions(Object.values(data));
       }
-      setIsLoading(false);
-    }, (error) => {
-      console.error('Error loading transactions:', error);
       setIsLoading(false);
     });
 
@@ -64,8 +60,6 @@ export default function BudgetTracker({ user, onLogout }) {
       } else if (data) {
         setTargets(Object.values(data));
       }
-    }, (error) => {
-      console.error('Error loading targets:', error);
     });
 
     return () => {
@@ -74,25 +68,18 @@ export default function BudgetTracker({ user, onLogout }) {
     };
   }, [user]);
 
-  // Save transactions to Firebase
   useEffect(() => {
     if (!isLoading && user && transactions.length >= 0) {
-      set(ref(database, `users/${user.uid}/transactions`), transactions).catch((error) => {
-        console.error('Error saving transactions:', error);
-      });
+      set(ref(database, `users/${user.uid}/transactions`), transactions);
     }
   }, [transactions, isLoading, user]);
 
-  // Save targets to Firebase
   useEffect(() => {
     if (!isLoading && user && targets.length >= 0) {
-      set(ref(database, `users/${user.uid}/targets`), targets).catch((error) => {
-        console.error('Error saving targets:', error);
-      });
+      set(ref(database, `users/${user.uid}/targets`), targets);
     }
   }, [targets, isLoading, user]);
 
-  // Check for budget alerts
   useEffect(() => {
     const newAlerts = [];
     targets.forEach(target => {
@@ -123,7 +110,7 @@ export default function BudgetTracker({ user, onLogout }) {
       const transDate = parseDate(t.date);
       const startDate = filterStartDate ? new Date(filterStartDate) : null;
       const endDate = filterEndDate ? new Date(filterEndDate) : null;
-
+      
       if (startDate && endDate) {
         dateMatch = transDate >= startDate && transDate <= endDate;
       } else if (startDate) {
@@ -182,7 +169,7 @@ export default function BudgetTracker({ user, onLogout }) {
     const data = [];
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - (chartWeekOffset * 7) - 6);
-
+    
     let startDateStr = '';
     let endDateStr = '';
 
@@ -214,50 +201,33 @@ export default function BudgetTracker({ user, onLogout }) {
   };
 
   const parseAmount = (amountStr) => {
-    const cleaned = amountStr.toLowerCase().replace(/\\s/g, '');
-
-    if (cleaned.includes('k')) {
-      return parseFloat(cleaned.replace('k', '')) * 1000;
-    }
-    if (cleaned.includes('jt') || cleaned.includes('juta')) {
-      return parseFloat(cleaned.replace(/jt|juta/g, '')) * 1000000;
-    }
+    const cleaned = amountStr.toLowerCase().replace(/\s/g, '');
+    if (cleaned.includes('k')) return parseFloat(cleaned.replace('k', '')) * 1000;
+    if (cleaned.includes('jt') || cleaned.includes('juta')) return parseFloat(cleaned.replace(/jt|juta/g, '')) * 1000000;
     return parseFloat(cleaned);
   };
 
   const detectCategory = (description) => {
     const lowerDesc = description.toLowerCase();
-
     for (const target of targets) {
       for (const keyword of target.keywords) {
-        if (lowerDesc.includes(keyword)) {
-          return target.name;
-        }
+        if (lowerDesc.includes(keyword)) return target.name;
       }
     }
-
     const keywords = {
-      'Makanan': ['makan', 'sarapan', 'lunch', 'dinner', 'nasi', 'ayam', 'snack', 'cemilan', 'kopi', 'minum', 'food', 'resto', 'warteg', 'mie', 'bakso'],
-      'Transport': ['bensin', 'grab', 'gojek', 'ojol', 'parkir', 'tol', 'transport', 'angkot', 'bus', 'kereta', 'travel'],
-      'Belanja': ['belanja', 'indomaret', 'alfamart', 'supermarket', 'grocery', 'shopee', 'tokopedia', 'lazada', 'beli'],
-      'Hiburan': ['nonton', 'bioskop', 'game', 'streaming', 'spotify', 'netflix', 'jalan', 'wisata', 'karaoke', 'fm', 'mall'],
-      'Tagihan': ['listrik', 'air', 'pdam', 'internet', 'wifi', 'pulsa', 'token', 'tagihan', 'bayar'],
-      'Kesehatan': ['obat', 'dokter', 'rumah sakit', 'klinik', 'vitamin', 'apotek', 'medical']
+      'Makanan': ['makan', 'sarapan', 'lunch', 'kopi', 'minum'],
+      'Transport': ['bensin', 'grab', 'gojek', 'parkir'],
+      'Hiburan': ['nonton', 'game', 'jalan', 'fm', 'mall']
     };
-
     for (const [cat, words] of Object.entries(keywords)) {
-      if (words.some(word => lowerDesc.includes(word))) {
-        return cat;
-      }
+      if (words.some(word => lowerDesc.includes(word))) return cat;
     }
-
     return 'Lainnya';
   };
 
   const handleBulkInput = () => {
     if (!bulkInput.trim()) return;
-
-    const lines = bulkInput.split('\\n').filter(line => line.trim());
+    const lines = bulkInput.split('\n').filter(line => line.trim());
     const newTransactions = [];
     const currentDate = new Date().toLocaleDateString('id-ID');
 
@@ -265,16 +235,13 @@ export default function BudgetTracker({ user, onLogout }) {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 2) {
         const desc = parts[0];
-        const amountStr = parts[1];
-        const amount = parseAmount(amountStr);
-        const category = detectCategory(desc);
-
+        const amount = parseAmount(parts[1]);
         if (desc && !isNaN(amount) && amount > 0) {
           newTransactions.push({
             id: Date.now() + Math.random(),
             description: desc,
-            amount: amount,
-            category: category,
+            amount,
+            category: detectCategory(desc),
             type: 'pengeluaran',
             date: currentDate
           });
@@ -291,17 +258,14 @@ export default function BudgetTracker({ user, onLogout }) {
 
   const handleAddTransaction = () => {
     if (!description || !amount) return;
-
-    const newTransaction = {
+    setTransactions([{
       id: Date.now(),
       description,
       amount: parseFloat(amount),
       category,
       type,
       date: new Date().toLocaleDateString('id-ID')
-    };
-
-    setTransactions([newTransaction, ...transactions]);
+    }, ...transactions]);
     setDescription('');
     setAmount('');
     triggerAnimation();
@@ -312,46 +276,30 @@ export default function BudgetTracker({ user, onLogout }) {
     setTimeout(() => setShowAnimation(false), 1000);
   };
 
-  const handleDeleteTransaction = (id) => {
-    setTransactions(transactions.filter(t => t.id !== id));
-  };
+  const handleDeleteTransaction = (id) => setTransactions(transactions.filter(t => t.id !== id));
 
   const handleAddTarget = () => {
     if (!newTargetName || !newTargetAmount) return;
-
-    const keywords = newTargetName.toLowerCase().split(' ');
-    const newTarget = {
+    setTargets([...targets, {
       id: Date.now(),
       name: newTargetName,
       target: parseFloat(newTargetAmount),
       spent: 0,
-      keywords: keywords
-    };
-
-    setTargets([...targets, newTarget]);
-
+      keywords: newTargetName.toLowerCase().split(' ')
+    }]);
     if (!categories.pengeluaran.includes(newTargetName)) {
       categories.pengeluaran.push(newTargetName);
     }
-
     setNewTargetName('');
     setNewTargetAmount('');
   };
 
-  const handleEditTarget = (target) => {
-    setEditingTarget(target.id);
-  };
-
   const handleUpdateTarget = (id, newAmount) => {
-    setTargets(targets.map(t => 
-      t.id === id ? { ...t, target: parseFloat(newAmount) } : t
-    ));
+    setTargets(targets.map(t => t.id === id ? { ...t, target: parseFloat(newAmount) } : t));
     setEditingTarget(null);
   };
 
-  const handleDeleteTarget = (id) => {
-    setTargets(targets.filter(t => t.id !== id));
-  };
+  const handleDeleteTarget = (id) => setTargets(targets.filter(t => t.id !== id));
 
   const clearFilters = () => {
     setFilterStartDate('');
@@ -361,30 +309,22 @@ export default function BudgetTracker({ user, onLogout }) {
   };
 
   const exportToExcel = () => {
-    let csv = 'Tanggal,Deskripsi,Kategori,Tipe,Jumlah\\n';
-
+    let csv = 'Tanggal,Deskripsi,Kategori,Tipe,Jumlah\n';
     transactions.forEach(t => {
-      csv += `${t.date},${t.description},${t.category},${t.type},${t.amount}\\n`;
+      csv += `${t.date},${t.description},${t.category},${t.type},${t.amount}\n`;
     });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: 'text/csv' });
     const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `budget_tracker_${new Date().toLocaleDateString('id-ID').replace(/\\//g, '-')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `budget_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
-  const formatCurrency = (num) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(num);
-  };
+  const formatCurrency = (num) => new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(num);
 
   const { data: weeklyData, startDateStr, endDateStr } = getWeeklyData();
   const pieData = getPieChartData();
@@ -394,8 +334,7 @@ export default function BudgetTracker({ user, onLogout }) {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-semibold">Memuat data dari cloud...</p>
-          <p className="text-gray-500 text-sm mt-2">Sync dengan Firebase</p>
+          <p className="text-gray-600 font-semibold">Memuat data...</p>
         </div>
       </div>
     );
@@ -404,64 +343,100 @@ export default function BudgetTracker({ user, onLogout }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Logout */}
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-            💰 Budget Tracker Harian
-          </h1>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xs sm:text-sm text-gray-600 hidden sm:block">
-              {user.email}
-            </span>
-            <button
-              onClick={onLogout}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 shadow-md hover:shadow-lg"
-            >
-              <LogOut size={16} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">💰 Budget Tracker</h1>
+          <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <LogOut size={16} />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
 
-        {/* Alerts */}
         {alerts.length > 0 && (
           <div className="mb-4 space-y-2">
             {alerts.map((alert, idx) => (
-              <div
-                key={idx}
-                className={`p-3 sm:p-4 rounded-lg flex items-center gap-2 sm:gap-3 animate-pulse ${
-                  alert.type === 'danger' 
-                    ? 'bg-red-100 border-l-4 border-red-500 text-red-800' 
-                    : 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800'
-                }`}
-              >
-                <AlertTriangle size={20} className="flex-shrink-0" />
-                <p className="text-sm sm:text-base font-medium">{alert.message}</p>
+              <div key={idx} className={`p-3 rounded-lg flex items-center gap-2 ${alert.type === 'danger' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                <AlertTriangle size={20} />
+                <p className="text-sm font-medium">{alert.message}</p>
               </div>
             ))}
           </div>
         )}
 
-        {/* Animation Effect */}
         {showAnimation && (
-          <div className="fixed top-20 right-4 sm:right-8 z-50 animate-bounce">
-            <div className="bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow-lg flex items-center gap-2">
+          <div className="fixed top-20 right-4 z-50 animate-bounce">
+            <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
               <CheckCircle size={20} />
-              <span className="font-semibold text-sm sm:text-base">Tersimpan & Tersinkron!</span>
+              <span className="font-semibold">Tersimpan!</span>
             </div>
           </div>
         )}
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-5 hover:shadow-lg transition">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Pemasukan</p>
-                <p className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
-              </div>
-              <TrendingUp className="text-green-600" size={28} />
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <p className="text-xs text-gray-600">Pemasukan</p>
+            <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
           </div>
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <p className="text-xs text-gray-600">Pengeluaran</p>
+            <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpense)}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <p className="text-xs text-gray-600">Saldo</p>
+            <p className={`text-xl font-bold ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(balance)}</p>
+          </div>
+        </div>
 
-(END OF FILE)
+        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg shadow-lg p-4 mb-4 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Zap size={24} />
+              Input Cepat
+            </h2>
+            <button onClick={() => setShowBulkInput(!showBulkInput)} className="bg-white text-purple-600 px-3 py-2 rounded-lg text-sm font-semibold">
+              {showBulkInput ? 'Sembunyikan' : 'Tampilkan'}
+            </button>
+          </div>
+          {showBulkInput && (
+            <>
+              <textarea value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} placeholder="makan, 15k&#10;grab, 25k" className="w-full px-3 py-2 rounded-lg text-gray-800 h-24 resize-none text-sm" />
+              <button onClick={handleBulkInput} className="w-full bg-white text-purple-600 font-bold py-2 rounded-lg mt-3">
+                Tambahkan Semua!
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3">Riwayat Transaksi</h2>
+          <button onClick={exportToExcel} className="bg-green-600 text-white px-3 py-2 rounded-lg mb-3 text-sm">
+            <Download size={16} className="inline mr-1" /> Export
+          </button>
+          {filteredTransactions.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Belum ada transaksi</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredTransactions.map(t => (
+                <div key={t.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <span className={`px-2 py-1 text-xs rounded ${t.type === 'pemasukan' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {t.category}
+                    </span>
+                    <p className="font-medium text-sm mt-1">{t.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-semibold ${t.type === 'pemasukan' ? 'text-green-600' : 'text-red-600'}`}>
+                      {t.type === 'pemasukan' ? '+' : '-'} {formatCurrency(t.amount)}
+                    </p>
+                    <button onClick={() => handleDeleteTransaction(t.id)} className="text-red-500">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
