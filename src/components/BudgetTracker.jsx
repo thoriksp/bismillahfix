@@ -147,9 +147,9 @@ export default function BudgetTracker({ user, onLogout }) {
       }
     }
     const kws = {
-      'Makanan': ['makan', 'sarapan', 'kopi', 'minum', 'nasi'],
+      'Makanan': ['makan', 'sarapan', 'kopi', 'minum', 'nasi', 'fm'],
       'Transport': ['bensin', 'grab', 'gojek', 'parkir', 'tol'],
-      'Hiburan': ['nonton', 'game', 'jalan', 'fm', 'mall']
+      'Hiburan': ['nonton', 'game', 'jalan', 'mall']
     };
     for (const [cat, words] of Object.entries(kws)) {
       if (words.some(w => ld.includes(w))) return cat;
