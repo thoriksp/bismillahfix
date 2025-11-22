@@ -94,7 +94,27 @@ export default function BudgetTracker({ user, onLogout }) {
     setAlerts(newAlerts);
   }, [targets]);
 
-  useEffect(() => {
+  function calcTargetSpent(tg, trans, targetNames) {
+    var spent = 0;
+    if (tg.isOther) {
+      for (var k = 0; k < trans.length; k++) {
+        var tr = trans[k];
+        if (tr.type === 'pengeluaran' && targetNames.indexOf(tr.category) === -1) {
+          spent += tr.amount;
+        }
+      }
+    } else {
+      for (var m = 0; m < trans.length; m++) {
+        var trx = trans[m];
+        if (trx.type === 'pengeluaran' && trx.category === tg.name) {
+          spent += trx.amount;
+        }
+      }
+    }
+    return spent;
+  }
+
+  function getTargetsWithSpent() {
     var targetNames = [];
     for (var i = 0; i < targets.length; i++) {
       if (!targets[i].isOther) {
@@ -102,38 +122,22 @@ export default function BudgetTracker({ user, onLogout }) {
       }
     }
     
-    var updatedTargets = [];
+    var result = [];
     for (var j = 0; j < targets.length; j++) {
       var tg = targets[j];
-      var spent = 0;
-      
-      if (tg.isOther) {
-        for (var k = 0; k < transactions.length; k++) {
-          var tr = transactions[k];
-          if (tr.type === 'pengeluaran' && targetNames.indexOf(tr.category) === -1) {
-            spent += tr.amount;
-          }
-        }
-      } else {
-        for (var m = 0; m < transactions.length; m++) {
-          var trx = transactions[m];
-          if (trx.type === 'pengeluaran' && trx.category === tg.name) {
-            spent += trx.amount;
-          }
-        }
-      }
-      
-      updatedTargets.push({
+      result.push({
         id: tg.id,
         name: tg.name,
         target: tg.target,
-        spent: spent,
+        spent: calcTargetSpent(tg, transactions, targetNames),
         keywords: tg.keywords,
         isOther: tg.isOther
       });
     }
-    setTargets(updatedTargets);
-  }, [transactions]);
+    return result;
+  }
+
+  var targetsWithSpent = getTargetsWithSpent();
 
   function parseDate(d) {
     var parts = d.split('/');
@@ -579,7 +583,7 @@ export default function BudgetTracker({ user, onLogout }) {
             Target Pengeluaran Tetap
           </h2>
           <div className="space-y-3 mb-4">
-            {targets.map(function(tg) {
+            {targetsWithSpent.map(function(tg) {
               var rem = tg.target - tg.spent;
               var pct = (tg.spent / tg.target) * 100;
               var over = tg.spent > tg.target;
