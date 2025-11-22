@@ -16,6 +16,7 @@ export default function BudgetTracker({ user, onLogout }) {
     { id: 1, name: 'Ortu', target: 2000000, spent: 0, keywords: ['ortu', 'orang tua', 'orangtua'] },
     { id: 2, name: 'Tabungan', target: 1000000, spent: 0, keywords: ['tabungan', 'nabung', 'saving'] },
     { id: 3, name: 'Cicilan', target: 500000, spent: 0, keywords: ['cicilan', 'bayar cicilan'] }
+    { id: 4, name: 'Lainnya', target: 3000000, spent: 0, keywords: [], isOther: true }
   ]);
   const [editingTarget, setEditingTarget] = useState(null);
   const [newTargetName, setNewTargetName] = useState('');
@@ -104,10 +105,24 @@ export default function BudgetTracker({ user, onLogout }) {
   };
 
   useEffect(() => {
-    setTargets(targets.map(tg => ({
-      ...tg,
-      spent: transactions.filter(t => t.type === 'pengeluaran' && t.category === tg.name).reduce((s, t) => s + t.amount, 0)
-    })));
+    // Ambil semua nama target kecuali "Lainnya"
+    const targetNames = targets.filter(t => !t.isOther).map(t => t.name);
+    
+    setTargets(targets.map(tg => {
+      if (tg.isOther) {
+        // "Lainnya" = semua pengeluaran yang BUKAN target lain
+        const spent = transactions
+          .filter(t => t.type === 'pengeluaran' && !targetNames.includes(t.category))
+          .reduce((s, t) => s + t.amount, 0);
+        return { ...tg, spent };
+      } else {
+        // Target biasa = berdasarkan nama kategori
+        const spent = transactions
+          .filter(t => t.type === 'pengeluaran' && t.category === tg.name)
+          .reduce((s, t) => s + t.amount, 0);
+        return { ...tg, spent };
+      }
+    }));
   }, [transactions]);
 
   const getWeeklyData = () => {
