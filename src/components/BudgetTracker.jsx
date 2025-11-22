@@ -268,16 +268,29 @@ export default function BudgetTracker({ user, onLogout }) {
     return 'Lainnya';
   }
 
-  // Bulk input handler
+  // Bulk input handler - support custom date
   function handleBulkInput() {
     if (!bulkInput.trim()) return;
     var lines = bulkInput.split('\n');
     var newTrans = [];
-    var curDate = new Date().toLocaleDateString('id-ID');
+    var currentDate = new Date().toLocaleDateString('id-ID'); // default hari ini
     
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
+      
+      // Check if line is a date header (format: dd/mm: atau dd/mm)
+      var dateMatch = line.match(/^(\d{1,2})\/(\d{1,2}):?$/);
+      if (dateMatch) {
+        // This is a date header, set current date
+        var day = dateMatch[1].padStart(2, '0');
+        var month = dateMatch[2].padStart(2, '0');
+        var year = new Date().getFullYear();
+        currentDate = day + '/' + month + '/' + year;
+        continue;
+      }
+      
+      // Parse transaction line
       var parts = line.split(',');
       if (parts.length >= 2) {
         var desc = parts[0].trim();
@@ -289,7 +302,7 @@ export default function BudgetTracker({ user, onLogout }) {
             amount: amt,
             category: detectCategory(desc),
             type: 'pengeluaran',
-            date: curDate
+            date: currentDate
           });
         }
       }
@@ -514,8 +527,12 @@ export default function BudgetTracker({ user, onLogout }) {
           </div>
           {showBulkInput && (
             <div>
-              <p className="text-xs mb-2 opacity-90">Format: deskripsi, jumlah (contoh: makan, 15k)</p>
-              <textarea value={bulkInput} onChange={function(e) { setBulkInput(e.target.value); }} placeholder={'makan, 15k\ngrab, 25k\nortu, 1000k'} className="w-full px-3 py-2 rounded-lg text-gray-800 h-24 resize-none text-sm" />
+              <div className="bg-white bg-opacity-20 rounded-lg p-3 mb-3">
+                <p className="text-xs mb-1">📝 <strong>Format:</strong> deskripsi, jumlah</p>
+                <p className="text-xs opacity-90">Tanpa tanggal = hari ini</p>
+                <p className="text-xs opacity-90">Dengan tanggal = tulis <strong>dd/mm:</strong> di baris terpisah</p>
+              </div>
+              <textarea value={bulkInput} onChange={function(e) { setBulkInput(e.target.value); }} placeholder={'makan, 15k\ngrab, 25k\n\n20/11:\nkopi, 10k\njajan, 5k'} className="w-full px-3 py-2 rounded-lg text-gray-800 h-32 resize-none text-sm font-mono" />
               <button onClick={handleBulkInput} className="w-full bg-white text-purple-600 font-bold py-2 rounded-lg mt-3">
                 Tambahkan Semua!
               </button>
@@ -683,17 +700,21 @@ export default function BudgetTracker({ user, onLogout }) {
                 Export
               </button>
             </div>
-            <input type="text" value={searchQuery} onChange={function(e) { setSearchQuery(e.target.value); }} placeholder="Cari..." className="w-full px-3 py-2 border rounded text-sm mb-3" />
+            <input type="text" value={searchQuery} onChange={function(e) { setSearchQuery(e.target.value); }} placeholder="Cari deskripsi/kategori..." className="w-full px-3 py-2 border rounded text-sm mb-2" />
+            <p className="text-xs text-gray-500 mb-3">💡 Filter tanggal di atas juga berlaku untuk riwayat ini</p>
             {filteredTrans.length === 0 ? (
               <p className="text-gray-500 text-center py-8 text-sm">Belum ada transaksi</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {filteredTrans.map(function(t) {
                   return (
-                    <div key={t.id} className="flex items-center justify-between p-2 border rounded text-sm">
-                      <div>
-                        <span className={'px-1 py-0.5 text-xs rounded mr-2 ' + (t.type === 'pemasukan' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{t.category}</span>
-                        <span>{t.description}</span>
+                    <div key={t.id} className="flex items-center justify-between p-2 border rounded text-sm hover:bg-gray-50">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={'px-1 py-0.5 text-xs rounded ' + (t.type === 'pemasukan' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{t.category}</span>
+                          <span className="text-xs text-gray-400">{t.date}</span>
+                        </div>
+                        <span className="text-gray-800">{t.description}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={t.type === 'pemasukan' ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
@@ -707,6 +728,9 @@ export default function BudgetTracker({ user, onLogout }) {
                   );
                 })}
               </div>
+            )}
+            {filteredTrans.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2 text-right">{filteredTrans.length} transaksi</p>
             )}
           </div>
         </div>
