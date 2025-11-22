@@ -15,7 +15,7 @@ export default function BudgetTracker({ user, onLogout }) {
   const [targets, setTargets] = useState([
     { id: 1, name: 'Ortu', target: 2000000, spent: 0, keywords: ['ortu', 'orang tua', 'orangtua'] },
     { id: 2, name: 'Tabungan', target: 1000000, spent: 0, keywords: ['tabungan', 'nabung', 'saving'] },
-    { id: 3, name: 'Cicilan', target: 500000, spent: 0, keywords: ['cicilan', 'bayar cicilan'] }
+    { id: 3, name: 'Cicilan', target: 500000, spent: 0, keywords: ['cicilan', 'bayar cicilan'] },
     { id: 4, name: 'Lainnya', target: 3000000, spent: 0, keywords: [], isOther: true }
   ]);
   const [editingTarget, setEditingTarget] = useState(null);
