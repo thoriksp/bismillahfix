@@ -430,14 +430,16 @@ export default function BudgetTracker({ user, onLogout }) {
   var endStr = weeklyResult.endStr;
   var pieData = getPieData();
 
-  if (isLoading) return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 font-semibold">Memuat data...</p>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-semibold">Memuat data...</p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
@@ -452,12 +454,14 @@ export default function BudgetTracker({ user, onLogout }) {
 
         {alerts.length > 0 && (
           <div className="mb-4 space-y-2">
-            {alerts.map((a, i) => (
-              <div key={i} className={`p-3 rounded-lg flex items-center gap-2 ${a.type === 'danger' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                <AlertTriangle size={20} />
-                <p className="text-sm font-medium">{a.message}</p>
-              </div>
-            ))}
+            {alerts.map(function(a, i) {
+              return (
+                <div key={i} className={a.type === 'danger' ? 'p-3 rounded-lg flex items-center gap-2 bg-red-100 text-red-800' : 'p-3 rounded-lg flex items-center gap-2 bg-yellow-100 text-yellow-800'}>
+                  <AlertTriangle size={20} />
+                  <p className="text-sm font-medium">{a.message}</p>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -481,7 +485,7 @@ export default function BudgetTracker({ user, onLogout }) {
           </div>
           <div className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition">
             <p className="text-xs text-gray-600">Saldo</p>
-            <p className={`text-xl font-bold ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(balance)}</p>
+            <p className={'text-xl font-bold ' + (balance >= 0 ? 'text-blue-600' : 'text-red-600')}>{formatCurrency(balance)}</p>
           </div>
         </div>
 
@@ -492,22 +496,21 @@ export default function BudgetTracker({ user, onLogout }) {
               <span className="hidden sm:inline">Input Cepat - Langsung Banyak!</span>
               <span className="sm:hidden">Input Cepat</span>
             </h2>
-            <button onClick={() => setShowBulkInput(!showBulkInput)} className="bg-white text-purple-600 px-3 py-2 rounded-lg text-sm font-semibold">
+            <button onClick={function() { setShowBulkInput(!showBulkInput); }} className="bg-white text-purple-600 px-3 py-2 rounded-lg text-sm font-semibold">
               {showBulkInput ? 'Sembunyikan' : 'Tampilkan'}
             </button>
           </div>
           {showBulkInput && (
-            <>
+            <div>
               <div className="bg-white bg-opacity-20 rounded-lg p-3 mb-3">
                 <p className="text-xs mb-1">📝 Format: Deskripsi, Jumlah (bisa pakai k)</p>
                 <p className="text-xs opacity-90">Contoh: makan, 15k</p>
               </div>
-              <textarea value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} placeholder="makan, 15k&#10;grab, 25k&#10;ortu, 1000k" className="w-full px-3 py-2 rounded-lg text-gray-800 h-24 resize-none text-sm" />
+              <textarea value={bulkInput} onChange={function(e) { setBulkInput(e.target.value); }} placeholder="makan, 15k&#10;grab, 25k&#10;ortu, 1000k" className="w-full px-3 py-2 rounded-lg text-gray-800 h-24 resize-none text-sm" />
               <button onClick={handleBulkInput} className="w-full bg-white text-purple-600 font-bold py-2 rounded-lg mt-3">
-                <Zap size={20} className="inline mr-2" />
                 Tambahkan Semua Sekaligus!
               </button>
-            </>
+            </div>
           )}
         </div>
 
@@ -516,8 +519,8 @@ export default function BudgetTracker({ user, onLogout }) {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">📊 Grafik Mingguan</h2>
               <div className="flex gap-2">
-                <button onClick={() => setChartWeekOffset(chartWeekOffset + 1)} className="px-2 py-1 bg-blue-500 text-white rounded text-xs">← Lalu</button>
-                <button onClick={() => setChartWeekOffset(Math.max(0, chartWeekOffset - 1))} disabled={chartWeekOffset === 0} className={`px-2 py-1 rounded text-xs ${chartWeekOffset === 0 ? 'bg-gray-300 text-gray-500' : 'bg-blue-500 text-white'}`}>Depan →</button>
+                <button onClick={function() { setChartWeekOffset(chartWeekOffset + 1); }} className="px-2 py-1 bg-blue-500 text-white rounded text-xs">← Lalu</button>
+                <button onClick={function() { setChartWeekOffset(Math.max(0, chartWeekOffset - 1)); }} disabled={chartWeekOffset === 0} className={'px-2 py-1 rounded text-xs ' + (chartWeekOffset === 0 ? 'bg-gray-300 text-gray-500' : 'bg-blue-500 text-white')}>Depan →</button>
               </div>
             </div>
             <div className="mb-3 text-center">
@@ -531,7 +534,7 @@ export default function BudgetTracker({ user, onLogout }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" style={{ fontSize: '10px' }} />
                 <YAxis style={{ fontSize: '10px' }} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
+                <Tooltip formatter={function(v) { return formatCurrency(v); }} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="Pemasukan" fill="#10b981" />
                 <Bar dataKey="Pengeluaran" fill="#ef4444" />
@@ -544,24 +547,28 @@ export default function BudgetTracker({ user, onLogout }) {
             {pieData.length === 0 ? (
               <p className="text-gray-500 text-center py-8 text-sm">Belum ada data</p>
             ) : (
-              <>
+              <div>
                 <ResponsiveContainer width="100%" height={150}>
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={60} dataKey="value">
-                      {pieData.map((e, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
+                    <Pie data={pieData} cx="50%" cy="50%" labelLine={false} outerRadius={60} dataKey="value">
+                      {pieData.map(function(e, i) { 
+                        return <Cell key={'cell-' + i} fill={COLORS[i % COLORS.length]} />; 
+                      })}
                     </Pie>
-                    <Tooltip formatter={(v) => formatCurrency(v)} />
+                    <Tooltip formatter={function(v) { return formatCurrency(v); }} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {pieData.map((e, i) => (
-                    <div key={e.name} className="flex items-center gap-2 text-xs">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="truncate">{e.name}: {formatCurrency(e.value)}</span>
-                    </div>
-                  ))}
+                  {pieData.map(function(e, i) {
+                    return (
+                      <div key={e.name} className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <span className="truncate">{e.name}: {formatCurrency(e.value)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -572,26 +579,32 @@ export default function BudgetTracker({ user, onLogout }) {
             Target Pengeluaran Tetap
           </h2>
           <div className="space-y-3 mb-4">
-            {targets.map(tg => {
-              const rem = tg.target - tg.spent;
-              const pct = (tg.spent / tg.target) * 100;
-              const over = tg.spent > tg.target;
+            {targets.map(function(tg) {
+              var rem = tg.target - tg.spent;
+              var pct = (tg.spent / tg.target) * 100;
+              var over = tg.spent > tg.target;
+              var barColor = over ? 'bg-red-500' : (pct > 80 ? 'bg-yellow-500' : 'bg-green-500');
+              
               return (
                 <div key={tg.id} className="border rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-sm">{tg.name}</h3>
-                      <button onClick={() => setEditingTarget(tg.id)} className="text-blue-500">
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => deleteTarget(tg.id)} className="text-red-500">
-                        <X size={12} />
-                      </button>
+                      {!tg.isOther && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={function() { setEditingTarget(tg.id); }} className="text-blue-500">
+                            <Edit2 size={12} />
+                          </button>
+                          <button onClick={function() { deleteTarget(tg.id); }} className="text-red-500">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {editingTarget === tg.id ? (
                       <div className="flex items-center gap-2">
-                        <input type="number" defaultValue={tg.target} id={`edit-${tg.id}`} className="w-24 px-2 py-1 border rounded text-xs" />
-                        <button onClick={() => updateTarget(tg.id, document.getElementById(`edit-${tg.id}`).value)} className="text-green-600">
+                        <input type="number" defaultValue={tg.target} id={'edit-' + tg.id} className="w-24 px-2 py-1 border rounded text-xs" />
+                        <button onClick={function() { updateTarget(tg.id, document.getElementById('edit-' + tg.id).value); }} className="text-green-600">
                           <Check size={16} />
                         </button>
                       </div>
@@ -602,12 +615,12 @@ export default function BudgetTracker({ user, onLogout }) {
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <span>Dikeluarkan: <span className="font-semibold text-red-600">{formatCurrency(tg.spent)}</span></span>
-                      <span className={`font-semibold ${over ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={'font-semibold ' + (over ? 'text-red-600' : 'text-green-600')}>
                         {over ? 'Lebih' : 'Sisa'}: {formatCurrency(Math.abs(rem))}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className={`h-2 rounded-full ${over ? 'bg-red-500' : pct > 80 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      <div className={'h-2 rounded-full ' + barColor} style={{ width: Math.min(pct, 100) + '%' }} />
                     </div>
                     <p className="text-xs text-gray-500">{pct.toFixed(1)}% dari target</p>
                   </div>
@@ -618,8 +631,8 @@ export default function BudgetTracker({ user, onLogout }) {
           <div className="border-t pt-3">
             <h3 className="font-semibold mb-2 text-sm">Tambah Target Baru</h3>
             <div className="flex gap-2">
-              <input type="text" value={newTargetName} onChange={(e) => setNewTargetName(e.target.value)} placeholder="Nama target" className="flex-1 px-3 py-2 border rounded text-sm" />
-              <input type="number" value={newTargetAmount} onChange={(e) => setNewTargetAmount(e.target.value)} placeholder="Jumlah" className="w-28 px-3 py-2 border rounded text-sm" />
+              <input type="text" value={newTargetName} onChange={function(e) { setNewTargetName(e.target.value); }} placeholder="Nama target" className="flex-1 px-3 py-2 border rounded text-sm" />
+              <input type="number" value={newTargetAmount} onChange={function(e) { setNewTargetAmount(e.target.value); }} placeholder="Jumlah" className="w-28 px-3 py-2 border rounded text-sm" />
               <button onClick={addTarget} className="bg-blue-600 text-white px-3 py-2 rounded">
                 <Plus size={18} />
               </button>
@@ -631,15 +644,15 @@ export default function BudgetTracker({ user, onLogout }) {
           <div className="bg-white rounded-lg shadow-md p-4">
             <h2 className="text-lg font-semibold mb-3">Input Manual</h2>
             <div className="space-y-3">
-              <select value={type} onChange={(e) => { setType(e.target.value); setCategory(categories[e.target.value][0]); }} className="w-full px-3 py-2 border rounded text-sm">
+              <select value={type} onChange={function(e) { setType(e.target.value); setCategory(categories[e.target.value][0]); }} className="w-full px-3 py-2 border rounded text-sm">
                 <option value="pengeluaran">Pengeluaran</option>
                 <option value="pemasukan">Pemasukan</option>
               </select>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 border rounded text-sm">
-                {categories[type].map(c => <option key={c} value={c}>{c}</option>)}
+              <select value={category} onChange={function(e) { setCategory(e.target.value); }} className="w-full px-3 py-2 border rounded text-sm">
+                {categories[type].map(function(c) { return <option key={c} value={c}>{c}</option>; })}
               </select>
-              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Deskripsi" className="w-full px-3 py-2 border rounded text-sm" />
-              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Jumlah (Rp)" className="w-full px-3 py-2 border rounded text-sm" />
+              <input type="text" value={description} onChange={function(e) { setDescription(e.target.value); }} placeholder="Deskripsi" className="w-full px-3 py-2 border rounded text-sm" />
+              <input type="number" value={amount} onChange={function(e) { setAmount(e.target.value); }} placeholder="Jumlah (Rp)" className="w-full px-3 py-2 border rounded text-sm" />
               <button onClick={handleAddTrans} className="w-full bg-blue-600 text-white font-semibold py-2 rounded flex items-center justify-center gap-2">
                 <Plus size={18} />
                 Tambah Transaksi
@@ -661,17 +674,17 @@ export default function BudgetTracker({ user, onLogout }) {
             <div className="mb-3">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari..." className="w-full pl-8 pr-3 py-2 border rounded text-sm" />
+                <input type="text" value={searchQuery} onChange={function(e) { setSearchQuery(e.target.value); }} placeholder="Cari..." className="w-full pl-8 pr-3 py-2 border rounded text-sm" />
               </div>
             </div>
             <div className="mb-3 p-3 bg-gray-50 rounded space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />
-                <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />
+                <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
+                <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
               </div>
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1 border rounded text-xs">
+              <select value={filterCategory} onChange={function(e) { setFilterCategory(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs">
                 <option value="all">Semua Kategori</option>
-                {[...categories.pengeluaran, ...categories.pemasukan].map(c => <option key={c} value={c}>{c}</option>)}
+                {categories.pengeluaran.concat(categories.pemasukan).map(function(c) { return <option key={c} value={c}>{c}</option>; })}
               </select>
               {(filterStartDate || filterEndDate || searchQuery || filterCategory !== 'all') && (
                 <button onClick={clearFilters} className="w-full text-xs text-blue-600 font-medium">Reset Filter</button>
@@ -681,27 +694,29 @@ export default function BudgetTracker({ user, onLogout }) {
               <p className="text-gray-500 text-center py-8 text-sm">Belum ada transaksi</p>
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                {filteredTransactions.map(t => (
-                  <div key={t.id} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-xs rounded ${t.type === 'pemasukan' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {t.category}
-                        </span>
-                        <span className="text-xs text-gray-500">{t.date}</span>
+                {filteredTransactions.map(function(t) {
+                  return (
+                    <div key={t.id} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={t.type === 'pemasukan' ? 'px-2 py-0.5 text-xs rounded bg-green-100 text-green-700' : 'px-2 py-0.5 text-xs rounded bg-red-100 text-red-700'}>
+                            {t.category}
+                          </span>
+                          <span className="text-xs text-gray-500">{t.date}</span>
+                        </div>
+                        <p className="font-medium text-xs mt-1">{t.description}</p>
                       </div>
-                      <p className="font-medium text-xs mt-1">{t.description}</p>
+                      <div className="flex items-center gap-2">
+                        <p className={t.type === 'pemasukan' ? 'text-sm font-semibold text-green-600' : 'text-sm font-semibold text-red-600'}>
+                          {t.type === 'pemasukan' ? '+' : '-'} {formatCurrency(t.amount)}
+                        </p>
+                        <button onClick={function() { deleteTrans(t.id); }} className="text-red-500">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm font-semibold ${t.type === 'pemasukan' ? 'text-green-600' : 'text-red-600'}`}>
-                        {t.type === 'pemasukan' ? '+' : '-'} {formatCurrency(t.amount)}
-                      </p>
-                      <button onClick={() => deleteTrans(t.id)} className="text-red-500">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -710,5 +725,3 @@ export default function BudgetTracker({ user, onLogout }) {
     </div>
   );
 }
-
-
