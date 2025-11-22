@@ -19,6 +19,8 @@ export default function BudgetTracker({ user, onLogout }) {
   ]);
   const [showBulkInput, setShowBulkInput] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
   const [showAnimation, setShowAnimation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -105,13 +107,107 @@ export default function BudgetTracker({ user, onLogout }) {
     return spent;
   }
 
-  // Filter transactions
+  // Get today's expense
+  function getTodayExpense() {
+    var today = new Date().toLocaleDateString('id-ID');
+    var sum = 0;
+    for (var i = 0; i < transactions.length; i++) {
+      if (transactions[i].type === 'pengeluaran' && transactions[i].date === today) {
+        sum += transactions[i].amount;
+      }
+    }
+    return sum;
+  }
+
+  // Get weekly data for chart
+  function getWeeklyData() {
+    var days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    var today = new Date();
+    var data = [];
+    
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(today.getDate() - i);
+      var dStr = d.toLocaleDateString('id-ID');
+      
+      var dayExpense = 0;
+      var dayIncome = 0;
+      for (var j = 0; j < transactions.length; j++) {
+        var t = transactions[j];
+        if (t.date === dStr) {
+          if (t.type === 'pengeluaran') dayExpense += t.amount;
+          if (t.type === 'pemasukan') dayIncome += t.amount;
+        }
+      }
+      
+      data.push({
+        day: days[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1),
+        Pengeluaran: dayExpense,
+        Pemasukan: dayIncome
+      });
+    }
+    return data;
+  }
+
+  // Parse date string to Date object
+  function parseDate(dateStr) {
+    var parts = dateStr.split('/');
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+
+  // Get filtered expense by date range
+  function getFilteredExpense() {
+    if (!filterStartDate && !filterEndDate) return null;
+    
+    var sum = 0;
+    var count = 0;
+    for (var i = 0; i < transactions.length; i++) {
+      var t = transactions[i];
+      if (t.type !== 'pengeluaran') continue;
+      
+      var tDate = parseDate(t.date);
+      var start = filterStartDate ? new Date(filterStartDate) : null;
+      var end = filterEndDate ? new Date(filterEndDate) : null;
+      
+      var match = true;
+      if (start && tDate < start) match = false;
+      if (end && tDate > end) match = false;
+      
+      if (match) {
+        sum += t.amount;
+        count++;
+      }
+    }
+    return { total: sum, count: count };
+  }
+
+  // Filter transactions for display
   function getFilteredTransactions() {
-    if (!searchQuery) return transactions;
-    var q = searchQuery.toLowerCase();
-    return transactions.filter(function(t) {
-      return t.description.toLowerCase().indexOf(q) !== -1 || t.category.toLowerCase().indexOf(q) !== -1;
-    });
+    var result = [];
+    for (var i = 0; i < transactions.length; i++) {
+      var t = transactions[i];
+      
+      // Search filter
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        if (t.description.toLowerCase().indexOf(q) === -1 && t.category.toLowerCase().indexOf(q) === -1) {
+          continue;
+        }
+      }
+      
+      // Date filter
+      if (filterStartDate || filterEndDate) {
+        var tDate = parseDate(t.date);
+        var start = filterStartDate ? new Date(filterStartDate) : null;
+        var end = filterEndDate ? new Date(filterEndDate) : null;
+        
+        if (start && tDate < start) continue;
+        if (end && tDate > end) continue;
+      }
+      
+      result.push(t);
+    }
+    return result;
   }
 
   // Calculate totals
@@ -274,11 +370,14 @@ export default function BudgetTracker({ user, onLogout }) {
 
   var totalIncome = getTotalIncome();
   var totalExpense = getTotalExpense();
+  var todayExpense = getTodayExpense();
   var balance = totalIncome - totalExpense;
   var filteredTrans = getFilteredTransactions();
   var pieData = getPieData();
   var alerts = getAlerts();
   var spentLainnya = getSpentLainnya();
+  var weeklyData = getWeeklyData();
+  var filteredExpense = getFilteredExpense();
 
   if (isLoading) {
     return (
@@ -325,7 +424,7 @@ export default function BudgetTracker({ user, onLogout }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-xs text-gray-600">Pemasukan</p>
             <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
@@ -338,6 +437,69 @@ export default function BudgetTracker({ user, onLogout }) {
             <p className="text-xs text-gray-600">Saldo</p>
             <p className={'text-xl font-bold ' + (balance >= 0 ? 'text-blue-600' : 'text-red-600')}>{formatCurrency(balance)}</p>
           </div>
+          <div className="bg-white rounded-lg shadow-md p-4 border-2 border-orange-200">
+            <p className="text-xs text-gray-600">📅 Hari Ini</p>
+            <p className="text-xl font-bold text-orange-600">{formatCurrency(todayExpense)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3">📊 Pengeluaran 7 Hari Terakhir</h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={weeklyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="day" style={{ fontSize: '10px' }} />
+              <YAxis style={{ fontSize: '10px' }} />
+              <Tooltip formatter={function(v) { return formatCurrency(v); }} />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Bar dataKey="Pengeluaran" fill="#ef4444" />
+              <Bar dataKey="Pemasukan" fill="#10b981" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3">🔍 Filter Berdasarkan Tanggal</h2>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Dari Tanggal</label>
+              <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Sampai Tanggal</label>
+              <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
+            </div>
+            {(filterStartDate || filterEndDate) && (
+              <button onClick={function() { setFilterStartDate(''); setFilterEndDate(''); }} className="px-3 py-2 bg-gray-200 text-gray-700 rounded text-sm">
+                Reset
+              </button>
+            )}
+          </div>
+          
+          {filteredExpense && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">
+                    Total Pengeluaran 
+                    {filterStartDate && filterEndDate && (
+                      <span className="font-semibold"> ({filterStartDate} s/d {filterEndDate})</span>
+                    )}
+                    {filterStartDate && !filterEndDate && (
+                      <span className="font-semibold"> (dari {filterStartDate})</span>
+                    )}
+                    {!filterStartDate && filterEndDate && (
+                      <span className="font-semibold"> (sampai {filterEndDate})</span>
+                    )}
+                  </p>
+                  <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredExpense.total)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">{filteredExpense.count} transaksi</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg shadow-lg p-4 mb-4 text-white">
