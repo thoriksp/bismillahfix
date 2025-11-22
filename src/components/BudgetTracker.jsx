@@ -17,7 +17,7 @@ export default function BudgetTracker({ user, onLogout }) {
       { id: 2, name: 'Tabungan', target: 1000000, spent: 0, keywords: ['tabungan', 'nabung', 'saving'] },
       { id: 3, name: 'Cicilan', target: 500000, spent: 0, keywords: ['cicilan', 'bayar cicilan'] },
       { id: 4, name: 'Lainnya', target: 3000000, spent: 0, keywords: [], isOther: true }
-    ]);
+      ]);
   const [editingTarget, setEditingTarget] = useState(null);
   const [newTargetName, setNewTargetName] = useState('');
   const [newTargetAmount, setNewTargetAmount] = useState('');
