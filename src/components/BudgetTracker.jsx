@@ -395,6 +395,29 @@ export default function BudgetTracker({ user, onLogout }) {
               <Target size={20} />
               Target Pengeluaran
             </h2>
+            
+            <div className="flex gap-2 mb-3">
+              <input type="text" id="newTargetName" placeholder="Nama (cth: Kuota)" className="flex-1 px-2 py-1 border rounded text-sm" />
+              <input type="number" id="newTargetAmount" placeholder="Budget" className="w-24 px-2 py-1 border rounded text-sm" />
+              <button onClick={function() {
+                var name = document.getElementById('newTargetName').value;
+                var amt = document.getElementById('newTargetAmount').value;
+                if (name && amt) {
+                  var newTarget = {
+                    id: Date.now(),
+                    name: name,
+                    target: parseFloat(amt),
+                    keywords: [name.toLowerCase()]
+                  };
+                  saveTargets(targets.concat([newTarget]));
+                  document.getElementById('newTargetName').value = '';
+                  document.getElementById('newTargetAmount').value = '';
+                }
+              }} className="bg-blue-600 text-white px-2 py-1 rounded text-sm">
+                <Plus size={16} />
+              </button>
+            </div>
+
             <div className="space-y-3">
               {targets.map(function(tg) {
                 var spent = getSpent(tg.name);
@@ -404,9 +427,25 @@ export default function BudgetTracker({ user, onLogout }) {
                   <div key={tg.id} className="border rounded p-2">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-semibold text-sm">{tg.name}</span>
-                      <button onClick={function() { deleteTarget(tg.id); }} className="text-red-500 text-xs">
-                        <X size={14} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={function() {
+                          var newAmt = prompt('Masukkan budget baru untuk ' + tg.name + ':', tg.target);
+                          if (newAmt && !isNaN(parseFloat(newAmt))) {
+                            var updated = targets.map(function(t) {
+                              if (t.id === tg.id) {
+                                return { id: t.id, name: t.name, target: parseFloat(newAmt), keywords: t.keywords };
+                              }
+                              return t;
+                            });
+                            saveTargets(updated);
+                          }
+                        }} className="text-blue-500 text-xs">
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={function() { deleteTarget(tg.id); }} className="text-red-500 text-xs">
+                          <X size={14} />
+                        </button>
+                      </div>
                     </div>
                     <div className="flex justify-between text-xs mb-1">
                       <span>Terpakai: {formatCurrency(spent)}</span>
@@ -425,6 +464,17 @@ export default function BudgetTracker({ user, onLogout }) {
               <div className="border rounded p-2 bg-gray-50">
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-semibold text-sm">Lainnya (Non-Target)</span>
+                  <button onClick={function() {
+                    var newAmt = prompt('Masukkan budget baru untuk Lainnya:', budgetLainnya);
+                    if (newAmt && !isNaN(parseFloat(newAmt))) {
+                      setBudgetLainnya(parseFloat(newAmt));
+                      if (user) {
+                        set(ref(database, 'users/' + user.uid + '/budgetLainnya'), parseFloat(newAmt));
+                      }
+                    }
+                  }} className="text-blue-500 text-xs">
+                    <Edit2 size={12} />
+                  </button>
                 </div>
                 <div className="flex justify-between text-xs mb-1">
                   <span>Terpakai: {formatCurrency(spentLainnya)}</span>
