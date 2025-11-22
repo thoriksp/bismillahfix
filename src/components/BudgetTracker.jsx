@@ -1,3 +1,4 @@
+// src/components/BudgetTracker.jsx - COPY SEMUA INI
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Target, Edit2, Check, X, Zap, Calendar, Filter, Download, Search, AlertTriangle, CheckCircle, LogOut } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -36,398 +37,203 @@ export default function BudgetTracker({ user, onLogout }) {
 
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
+  // Load from Firebase
   useEffect(() => {
     if (!user) return;
-    const transRef = ref(database, 'users/' + user.uid + '/transactions');
-    const targRef = ref(database, 'users/' + user.uid + '/targets');
-    const unsubT = onValue(transRef, function(snap) {
+    const transRef = ref(database, `users/${user.uid}/transactions`);
+    const targRef = ref(database, `users/${user.uid}/targets`);
+    const unsubT = onValue(transRef, (snap) => {
       const data = snap.val();
-      if (data) {
-        if (Array.isArray(data)) {
-          setTransactions(data);
-        } else {
-          setTransactions(Object.values(data));
-        }
-      }
+      if (data) setTransactions(Array.isArray(data) ? data : Object.values(data));
       setIsLoading(false);
     });
-    const unsubTar = onValue(targRef, function(snap) {
+    const unsubTar = onValue(targRef, (snap) => {
       const data = snap.val();
-      if (data) {
-        if (Array.isArray(data)) {
-          setTargets(data);
-        } else {
-          setTargets(Object.values(data));
-        }
-      }
+      if (data) setTargets(Array.isArray(data) ? data : Object.values(data));
     });
-    return function() { 
-      unsubT(); 
-      unsubTar(); 
-    };
+    return () => { unsubT(); unsubTar(); };
   }, [user]);
 
+  // Save to Firebase
   useEffect(() => {
-    if (!isLoading && user) {
-      set(ref(database, 'users/' + user.uid + '/transactions'), transactions);
-    }
+    if (!isLoading && user) set(ref(database, `users/${user.uid}/transactions`), transactions);
   }, [transactions, isLoading, user]);
 
   useEffect(() => {
-    if (!isLoading && user) {
-      set(ref(database, 'users/' + user.uid + '/targets'), targets);
-    }
+    if (!isLoading && user) set(ref(database, `users/${user.uid}/targets`), targets);
   }, [targets, isLoading, user]);
 
+  // Alerts
   useEffect(() => {
-    var newAlerts = [];
-    for (var i = 0; i < targets.length; i++) {
-      var t = targets[i];
-      var pct = (t.spent / t.target) * 100;
-      if (pct >= 100) {
-        newAlerts.push({ type: 'danger', message: 'Target ' + t.name + ' melewati budget!' });
-      } else if (pct >= 80) {
-        newAlerts.push({ type: 'warning', message: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '%' });
-      }
-    }
+    const newAlerts = [];
+    targets.forEach(t => {
+      const pct = (t.spent / t.target) * 100;
+      if (pct >= 100) newAlerts.push({ type: 'danger', message: `⚠️ Target ${t.name} melewati budget!` });
+      else if (pct >= 80) newAlerts.push({ type: 'warning', message: `⚡ Target ${t.name} sudah ${pct.toFixed(0)}%` });
+    });
     setAlerts(newAlerts);
   }, [targets]);
 
+  const parseDate = (d) => { const [day, month, year] = d.split('/'); return new Date(year, month - 1, day); };
+  
+  const filteredTransactions = transactions.filter(t => {
+    let dateMatch = true;
+    if (filterStartDate || filterEndDate) {
+      const td = parseDate(t.date);
+      const sd = filterStartDate ? new Date(filterStartDate) : null;
+      const ed = filterEndDate ? new Date(filterEndDate) : null;
+      if (sd && ed) dateMatch = td >= sd && td <= ed;
+      else if (sd) dateMatch = td >= sd;
+      else if (ed) dateMatch = td <= ed;
+    }
+    const searchMatch = !searchQuery || t.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const catMatch = filterCategory === 'all' || t.category === filterCategory;
+    return dateMatch && searchMatch && catMatch;
+  });
+
+  const totalIncome = filteredTransactions.filter(t => t.type === 'pemasukan').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = filteredTransactions.filter(t => t.type === 'pengeluaran').reduce((s, t) => s + t.amount, 0);
+  const balance = totalIncome - totalExpense;
+
+  const getPieData = () => {
+    const cats = {};
+    filteredTransactions.filter(t => t.type === 'pengeluaran').forEach(t => {
+      cats[t.category] = (cats[t.category] || 0) + t.amount;
+    });
+    return Object.entries(cats).map(([name, value]) => ({ name, value }));
+  };
+
   useEffect(() => {
-    var targetNames = [];
-    for (var i = 0; i < targets.length; i++) {
-      if (!targets[i].isOther) {
-        targetNames.push(targets[i].name);
-      }
-    }
-    
-    var updatedTargets = [];
-    for (var j = 0; j < targets.length; j++) {
-      var tg = targets[j];
-      var spent = 0;
-      
-      if (tg.isOther) {
-        for (var k = 0; k < transactions.length; k++) {
-          var tr = transactions[k];
-          if (tr.type === 'pengeluaran' && targetNames.indexOf(tr.category) === -1) {
-            spent += tr.amount;
-          }
-        }
-      } else {
-        for (var m = 0; m < transactions.length; m++) {
-          var trx = transactions[m];
-          if (trx.type === 'pengeluaran' && trx.category === tg.name) {
-            spent += trx.amount;
-          }
-        }
-      }
-      
-      updatedTargets.push({
-        id: tg.id,
-        name: tg.name,
-        target: tg.target,
-        spent: spent,
-        keywords: tg.keywords,
-        isOther: tg.isOther
-      });
-    }
-    setTargets(updatedTargets);
+    setTargets(targets.map(tg => ({
+      ...tg,
+      spent: transactions.filter(t => t.type === 'pengeluaran' && t.category === tg.name).reduce((s, t) => s + t.amount, 0)
+    })));
   }, [transactions]);
 
-  function parseDate(d) {
-    var parts = d.split('/');
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-  }
-
-  function getFilteredTransactions() {
-    var result = [];
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
-      var dateMatch = true;
-      
-      if (filterStartDate || filterEndDate) {
-        var td = parseDate(t.date);
-        var sd = filterStartDate ? new Date(filterStartDate) : null;
-        var ed = filterEndDate ? new Date(filterEndDate) : null;
-        if (sd && ed) {
-          dateMatch = td >= sd && td <= ed;
-        } else if (sd) {
-          dateMatch = td >= sd;
-        } else if (ed) {
-          dateMatch = td <= ed;
-        }
-      }
-      
-      var searchMatch = !searchQuery || t.description.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1;
-      var catMatch = filterCategory === 'all' || t.category === filterCategory;
-      
-      if (dateMatch && searchMatch && catMatch) {
-        result.push(t);
-      }
-    }
-    return result;
-  }
-
-  var filteredTransactions = getFilteredTransactions();
-
-  function calcTotalIncome() {
-    var sum = 0;
-    for (var i = 0; i < filteredTransactions.length; i++) {
-      if (filteredTransactions[i].type === 'pemasukan') {
-        sum += filteredTransactions[i].amount;
-      }
-    }
-    return sum;
-  }
-
-  function calcTotalExpense() {
-    var sum = 0;
-    for (var i = 0; i < filteredTransactions.length; i++) {
-      if (filteredTransactions[i].type === 'pengeluaran') {
-        sum += filteredTransactions[i].amount;
-      }
-    }
-    return sum;
-  }
-
-  var totalIncome = calcTotalIncome();
-  var totalExpense = calcTotalExpense();
-  var balance = totalIncome - totalExpense;
-
-  function getPieData() {
-    var cats = {};
-    for (var i = 0; i < filteredTransactions.length; i++) {
-      var t = filteredTransactions[i];
-      if (t.type === 'pengeluaran') {
-        if (cats[t.category]) {
-          cats[t.category] += t.amount;
-        } else {
-          cats[t.category] = t.amount;
-        }
-      }
-    }
-    var result = [];
-    for (var key in cats) {
-      result.push({ name: key, value: cats[key] });
-    }
-    return result;
-  }
-
-  function getWeeklyData() {
-    var days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    var today = new Date();
-    var start = new Date(today);
+  const getWeeklyData = () => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const today = new Date();
+    const start = new Date(today);
     start.setDate(today.getDate() - (chartWeekOffset * 7) - 6);
-    var data = [];
-    var startStr = '';
-    var endStr = '';
-    
-    for (var i = 0; i < 7; i++) {
-      var d = new Date(start);
+    const data = [];
+    let startStr = '', endStr = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
       d.setDate(start.getDate() + i);
-      var dStr = d.toLocaleDateString('id-ID');
+      const dStr = d.toLocaleDateString('id-ID');
       if (i === 0) startStr = dStr;
       if (i === 6) endStr = dStr;
-      
-      var dayIncome = 0;
-      var dayExpense = 0;
-      for (var j = 0; j < transactions.length; j++) {
-        var t = transactions[j];
-        if (t.date === dStr) {
-          if (t.type === 'pemasukan') dayIncome += t.amount;
-          if (t.type === 'pengeluaran') dayExpense += t.amount;
-        }
-      }
-      
       data.push({
-        day: days[d.getDay()] + '\n' + d.getDate() + '/' + (d.getMonth() + 1),
-        Pemasukan: dayIncome,
-        Pengeluaran: dayExpense
+        day: `${days[d.getDay()]}\n${d.getDate()}/${d.getMonth() + 1}`,
+        Pemasukan: transactions.filter(t => t.type === 'pemasukan' && t.date === dStr).reduce((s, t) => s + t.amount, 0),
+        Pengeluaran: transactions.filter(t => t.type === 'pengeluaran' && t.date === dStr).reduce((s, t) => s + t.amount, 0)
       });
     }
-    return { data: data, startStr: startStr, endStr: endStr };
-  }
+    return { data, startStr, endStr };
+  };
 
-  function parseAmount(s) {
-    var c = s.toLowerCase().replace(/\s/g, '');
-    if (c.indexOf('k') !== -1) {
-      return parseFloat(c.replace('k', '')) * 1000;
-    }
-    if (c.indexOf('jt') !== -1) {
-      return parseFloat(c.replace('jt', '')) * 1000000;
-    }
+  const parseAmount = (s) => {
+    const c = s.toLowerCase().replace(/\s/g, '');
+    if (c.includes('k')) return parseFloat(c.replace('k', '')) * 1000;
+    if (c.includes('jt')) return parseFloat(c.replace('jt', '')) * 1000000;
     return parseFloat(c);
-  }
+  };
 
-  function detectCategory(desc) {
-    var ld = desc.toLowerCase();
-    for (var i = 0; i < targets.length; i++) {
-      var tg = targets[i];
-      for (var j = 0; j < tg.keywords.length; j++) {
-        if (ld.indexOf(tg.keywords[j]) !== -1) {
-          return tg.name;
-        }
+  const detectCategory = (desc) => {
+    const ld = desc.toLowerCase();
+    for (const tg of targets) {
+      for (const kw of tg.keywords) {
+        if (ld.includes(kw)) return tg.name;
       }
     }
-    var kws = {
-      'Makanan': ['makan', 'sarapan', 'kopi', 'minum', 'nasi'],
+    const kws = {
+      'Makanan': ['makan', 'sarapan', 'kopi', 'minum', 'nasi', 'fm'],
       'Transport': ['bensin', 'grab', 'gojek', 'parkir', 'tol'],
-      'Hiburan': ['nonton', 'game', 'jalan', 'fm', 'mall']
+      'Hiburan': ['nonton', 'game', 'jalan', 'mall']
     };
-    for (var cat in kws) {
-      var words = kws[cat];
-      for (var k = 0; k < words.length; k++) {
-        if (ld.indexOf(words[k]) !== -1) {
-          return cat;
-        }
-      }
+    for (const [cat, words] of Object.entries(kws)) {
+      if (words.some(w => ld.includes(w))) return cat;
     }
     return 'Lainnya';
-  }
+  };
 
-  function handleBulkInput() {
+  const handleBulkInput = () => {
     if (!bulkInput.trim()) return;
-    var lines = bulkInput.split('\n');
-    var newTrans = [];
-    var curDate = new Date().toLocaleDateString('id-ID');
-    
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) continue;
-      var parts = line.split(',');
+    const lines = bulkInput.split('\n').filter(l => l.trim());
+    const newTrans = [];
+    const curDate = new Date().toLocaleDateString('id-ID');
+    lines.forEach(line => {
+      const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 2) {
-        var desc = parts[0].trim();
-        var amt = parseAmount(parts[1].trim());
-        if (desc && !isNaN(amt) && amt > 0) {
+        const amt = parseAmount(parts[1]);
+        if (parts[0] && !isNaN(amt) && amt > 0) {
           newTrans.push({
             id: Date.now() + Math.random(),
-            description: desc,
+            description: parts[0],
             amount: amt,
-            category: detectCategory(desc),
+            category: detectCategory(parts[0]),
             type: 'pengeluaran',
             date: curDate
           });
         }
       }
-    }
-    
+    });
     if (newTrans.length > 0) {
-      setTransactions(newTrans.concat(transactions));
+      setTransactions([...newTrans, ...transactions]);
       setBulkInput('');
       triggerAnimation();
     }
-  }
+  };
 
-  function handleAddTrans() {
+  const handleAddTrans = () => {
     if (!description || !amount) return;
-    var newTrans = {
+    setTransactions([{
       id: Date.now(),
-      description: description,
+      description,
       amount: parseFloat(amount),
-      category: category,
-      type: type,
+      category,
+      type,
       date: new Date().toLocaleDateString('id-ID')
-    };
-    setTransactions([newTrans].concat(transactions));
+    }, ...transactions]);
     setDescription('');
     setAmount('');
     triggerAnimation();
-  }
+  };
 
-  function triggerAnimation() {
-    setShowAnimation(true);
-    setTimeout(function() {
-      setShowAnimation(false);
-    }, 1000);
-  }
-
-  function deleteTrans(id) {
-    var newTrans = [];
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].id !== id) {
-        newTrans.push(transactions[i]);
-      }
-    }
-    setTransactions(newTrans);
-  }
-
-  function addTarget() {
+  const triggerAnimation = () => { setShowAnimation(true); setTimeout(() => setShowAnimation(false), 1000); };
+  const deleteTrans = (id) => setTransactions(transactions.filter(t => t.id !== id));
+  const addTarget = () => {
     if (!newTargetName || !newTargetAmount) return;
-    var newTg = {
+    setTargets([...targets, {
       id: Date.now(),
       name: newTargetName,
       target: parseFloat(newTargetAmount),
       spent: 0,
-      keywords: newTargetName.toLowerCase().split(' '),
-      isOther: false
-    };
-    setTargets(targets.concat([newTg]));
-    if (categories.pengeluaran.indexOf(newTargetName) === -1) {
-      categories.pengeluaran.push(newTargetName);
-    }
+      keywords: newTargetName.toLowerCase().split(' ')
+    }]);
+    if (!categories.pengeluaran.includes(newTargetName)) categories.pengeluaran.push(newTargetName);
     setNewTargetName('');
     setNewTargetAmount('');
-  }
-
-  function updateTarget(id, amt) {
-    var updated = [];
-    for (var i = 0; i < targets.length; i++) {
-      if (targets[i].id === id) {
-        updated.push({
-          id: targets[i].id,
-          name: targets[i].name,
-          target: parseFloat(amt),
-          spent: targets[i].spent,
-          keywords: targets[i].keywords,
-          isOther: targets[i].isOther
-        });
-      } else {
-        updated.push(targets[i]);
-      }
-    }
-    setTargets(updated);
+  };
+  const updateTarget = (id, amt) => {
+    setTargets(targets.map(t => t.id === id ? { ...t, target: parseFloat(amt) } : t));
     setEditingTarget(null);
-  }
-
-  function deleteTarget(id) {
-    var newTargets = [];
-    for (var i = 0; i < targets.length; i++) {
-      if (targets[i].id !== id) {
-        newTargets.push(targets[i]);
-      }
-    }
-    setTargets(newTargets);
-  }
-
-  function clearFilters() {
-    setFilterStartDate('');
-    setFilterEndDate('');
-    setSearchQuery('');
-    setFilterCategory('all');
-  }
-
-  function exportCSV() {
-    var csv = 'Tanggal,Deskripsi,Kategori,Tipe,Jumlah\n';
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
-      csv += t.date + ',' + t.description + ',' + t.category + ',' + t.type + ',' + t.amount + '\n';
-    }
-    var blob = new Blob([csv], { type: 'text/csv' });
-    var link = document.createElement('a');
+  };
+  const deleteTarget = (id) => setTargets(targets.filter(t => t.id !== id));
+  const clearFilters = () => { setFilterStartDate(''); setFilterEndDate(''); setSearchQuery(''); setFilterCategory('all'); };
+  const exportCSV = () => {
+    let csv = 'Tanggal,Deskripsi,Kategori,Tipe,Jumlah\n';
+    transactions.forEach(t => csv += `${t.date},${t.description},${t.category},${t.type},${t.amount}\n`);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'budget_' + new Date().toLocaleDateString('id-ID').replace(/\//g, '-') + '.csv';
+    link.download = `budget_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`;
     link.click();
-  }
+  };
+  const formatCurrency = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-  function formatCurrency(n) {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
-  }
-
-  var weeklyResult = getWeeklyData();
-  var weeklyData = weeklyResult.data;
-  var startStr = weeklyResult.startStr;
-  var endStr = weeklyResult.endStr;
-  var pieData = getPieData();
+  const { data: weeklyData, startStr, endStr } = getWeeklyData();
+  const pieData = getPieData();
 
   if (isLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
