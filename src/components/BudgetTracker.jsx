@@ -701,7 +701,30 @@ export default function BudgetTracker({ user, onLogout }) {
               </button>
             </div>
             <input type="text" value={searchQuery} onChange={function(e) { setSearchQuery(e.target.value); }} placeholder="Cari deskripsi/kategori..." className="w-full px-3 py-2 border rounded text-sm mb-2" />
-            <p className="text-xs text-gray-500 mb-3">💡 Filter tanggal di atas juga berlaku untuk riwayat ini</p>
+            
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Dari</label>
+                <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Sampai</label>
+                <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
+              </div>
+              {(filterStartDate || filterEndDate) && (
+                <button onClick={function() { setFilterStartDate(''); setFilterEndDate(''); }} className="self-end px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs mb-0.5">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {filteredExpense && (
+              <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
+                <p className="text-xs text-gray-600">Total Pengeluaran (filtered)</p>
+                <p className="text-lg font-bold text-red-600">{formatCurrency(filteredExpense.total)}</p>
+              </div>
+            )}
+
             {filteredTrans.length === 0 ? (
               <p className="text-gray-500 text-center py-8 text-sm">Belum ada transaksi</p>
             ) : (
