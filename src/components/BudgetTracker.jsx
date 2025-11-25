@@ -254,6 +254,8 @@ export default function BudgetTracker({ user, onLogout }) {
   // Detect category from description
   function detectCategory(desc) {
     var ld = desc.toLowerCase();
+    
+    // Check if matches any target keywords
     for (var i = 0; i < targets.length; i++) {
       var tg = targets[i];
       if (tg.keywords) {
@@ -262,9 +264,8 @@ export default function BudgetTracker({ user, onLogout }) {
         }
       }
     }
-    if (ld.indexOf('makan') !== -1 || ld.indexOf('kopi') !== -1) return 'Makanan';
-    if (ld.indexOf('grab') !== -1 || ld.indexOf('gojek') !== -1 || ld.indexOf('bensin') !== -1) return 'Transport';
-    if (ld.indexOf('nonton') !== -1 || ld.indexOf('mall') !== -1) return 'Hiburan';
+    
+    // If no target match, default to Lainnya
     return 'Lainnya';
   }
 
