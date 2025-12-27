@@ -23,10 +23,48 @@ export default function BudgetTracker({ user, onLogout }) {
   const [filterEndDate, setFilterEndDate] = useState('');
   const [showAnimation, setShowAnimation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAllPeriods, setShowAllPeriods] = useState(false);
 
   const allCategories = ['Makanan', 'Transport', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Ortu', 'Tabungan', 'Cicilan', 'Lainnya'];
   const incomeCategories = ['Gaji', 'Bonus', 'Hadiah', 'Lainnya'];
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
+  // Get current period start date (25th of last month)
+  function getCurrentPeriodStart() {
+    var today = new Date();
+    var year = today.getFullYear();
+    var month = today.getMonth();
+    
+    // If today is before 25th, period started on 25th of last month
+    if (today.getDate() < 25) {
+      month = month - 1;
+      if (month < 0) {
+        month = 11;
+        year = year - 1;
+      }
+    }
+    
+    return new Date(year, month, 25, 0, 0, 0);
+  }
+
+  // Parse date string to Date object
+  function parseDate(dateStr) {
+    var parts = dateStr.split('/');
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+
+  // Check if transaction is in current period
+  function isInCurrentPeriod(dateStr) {
+    var periodStart = getCurrentPeriodStart();
+    var transDate = parseDate(dateStr);
+    return transDate >= periodStart;
+  }
+
+  // Get transactions for display (filtered by period if needed)
+  function getActiveTransactions() {
+    if (showAllPeriods) return transactions;
+    return transactions.filter(function(t) { return isInCurrentPeriod(t.date); });
+  }
 
   // Load from Firebase - ONLY ONCE
   useEffect(function() {
@@ -85,10 +123,11 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Calculate spent for a target
   function getSpent(targetName) {
+    var activeTrans = getActiveTransactions();
     var spent = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].type === 'pengeluaran' && transactions[i].category === targetName) {
-        spent += transactions[i].amount;
+    for (var i = 0; i < activeTrans.length; i++) {
+      if (activeTrans[i].type === 'pengeluaran' && activeTrans[i].category === targetName) {
+        spent += activeTrans[i].amount;
       }
     }
     return spent;
@@ -96,10 +135,11 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Calculate spent for "Lainnya" (all non-target expenses)
   function getSpentLainnya() {
+    var activeTrans = getActiveTransactions();
     var targetNames = targets.map(function(t) { return t.name; });
     var spent = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
+    for (var i = 0; i < activeTrans.length; i++) {
+      var t = activeTrans[i];
       if (t.type === 'pengeluaran' && targetNames.indexOf(t.category) === -1) {
         spent += t.amount;
       }
@@ -109,11 +149,12 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Get today's expense
   function getTodayExpense() {
+    var activeTrans = getActiveTransactions();
     var today = new Date().toLocaleDateString('id-ID');
     var sum = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].type === 'pengeluaran' && transactions[i].date === today) {
-        sum += transactions[i].amount;
+    for (var i = 0; i < activeTrans.length; i++) {
+      if (activeTrans[i].type === 'pengeluaran' && activeTrans[i].date === today) {
+        sum += activeTrans[i].amount;
       }
     }
     return sum;
@@ -121,6 +162,7 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Get weekly data for chart
   function getWeeklyData() {
+    var activeTrans = getActiveTransactions();
     var days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     var today = new Date();
     var data = [];
@@ -132,8 +174,8 @@ export default function BudgetTracker({ user, onLogout }) {
       
       var dayExpense = 0;
       var dayIncome = 0;
-      for (var j = 0; j < transactions.length; j++) {
-        var t = transactions[j];
+      for (var j = 0; j < activeTrans.length; j++) {
+        var t = activeTrans[j];
         if (t.date === dStr) {
           if (t.type === 'pengeluaran') dayExpense += t.amount;
           if (t.type === 'pemasukan') dayIncome += t.amount;
@@ -149,20 +191,15 @@ export default function BudgetTracker({ user, onLogout }) {
     return data;
   }
 
-  // Parse date string to Date object
-  function parseDate(dateStr) {
-    var parts = dateStr.split('/');
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-  }
-
   // Get filtered expense by date range
   function getFilteredExpense() {
     if (!filterStartDate && !filterEndDate) return null;
     
+    var transToUse = showAllPeriods ? transactions : getActiveTransactions();
     var sum = 0;
     var count = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
+    for (var i = 0; i < transToUse.length; i++) {
+      var t = transToUse[i];
       if (t.type !== 'pengeluaran') continue;
       
       var tDate = parseDate(t.date);
@@ -183,9 +220,10 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Filter transactions for display
   function getFilteredTransactions() {
+    var transToUse = showAllPeriods ? transactions : getActiveTransactions();
     var result = [];
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
+    for (var i = 0; i < transToUse.length; i++) {
+      var t = transToUse[i];
       
       // Search filter
       if (searchQuery) {
@@ -212,26 +250,29 @@ export default function BudgetTracker({ user, onLogout }) {
 
   // Calculate totals
   function getTotalIncome() {
+    var activeTrans = getActiveTransactions();
     var sum = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].type === 'pemasukan') sum += transactions[i].amount;
+    for (var i = 0; i < activeTrans.length; i++) {
+      if (activeTrans[i].type === 'pemasukan') sum += activeTrans[i].amount;
     }
     return sum;
   }
 
   function getTotalExpense() {
+    var activeTrans = getActiveTransactions();
     var sum = 0;
-    for (var i = 0; i < transactions.length; i++) {
-      if (transactions[i].type === 'pengeluaran') sum += transactions[i].amount;
+    for (var i = 0; i < activeTrans.length; i++) {
+      if (activeTrans[i].type === 'pengeluaran') sum += activeTrans[i].amount;
     }
     return sum;
   }
 
   // Pie chart data
   function getPieData() {
+    var activeTrans = getActiveTransactions();
     var cats = {};
-    for (var i = 0; i < transactions.length; i++) {
-      var t = transactions[i];
+    for (var i = 0; i < activeTrans.length; i++) {
+      var t = activeTrans[i];
       if (t.type === 'pengeluaran') {
         cats[t.category] = (cats[t.category] || 0) + t.amount;
       }
@@ -392,6 +433,8 @@ export default function BudgetTracker({ user, onLogout }) {
   var spentLainnya = getSpentLainnya();
   var weeklyData = getWeeklyData();
   var filteredExpense = getFilteredExpense();
+  var periodStart = getCurrentPeriodStart();
+  var activeTrans = getActiveTransactions();
 
   if (isLoading) {
     return (
@@ -409,11 +452,23 @@ export default function BudgetTracker({ user, onLogout }) {
       <div className="max-w-7xl mx-auto">
         
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">💰 Budget Tracker</h1>
-          <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Logout</span>
-          </button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">💰 Budget Tracker</h1>
+            <p className="text-xs text-gray-500 mt-1">
+              Periode: {periodStart.toLocaleDateString('id-ID')} - {new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 24).toLocaleDateString('id-ID')}
+              {!showAllPeriods && <span className="ml-2 text-blue-600">({activeTrans.length} transaksi periode ini)</span>}
+              {showAllPeriods && <span className="ml-2 text-purple-600">({transactions.length} transaksi total)</span>}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={function() { setShowAllPeriods(!showAllPeriods); }} className={'px-3 py-2 rounded-lg text-sm font-semibold ' + (showAllPeriods ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700')}>
+              {showAllPeriods ? '📚 Semua Periode' : '📅 Periode Ini'}
+            </button>
+            <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
 
         {alerts.length > 0 && (
