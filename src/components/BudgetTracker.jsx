@@ -27,6 +27,8 @@ export default function BudgetTracker({ user, onLogout }) {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [dismissedAlerts, setDismissedAlerts] = useState({});
+  const [notificationHistory, setNotificationHistory] = useState([]);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
 
   const allCategories = ['Makanan', 'Transport', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Ortu', 'Tabungan', 'Cicilan', 'Lainnya'];
   const incomeCategories = ['Gaji', 'Bonus', 'Hadiah', 'Lainnya'];
@@ -144,26 +146,42 @@ export default function BudgetTracker({ user, onLogout }) {
       var alertKey = currentPeriodKey + '-' + t.name;
       
       if (pct >= 100 && !dismissedAlerts[alertKey + '-100']) {
-        newNotifs.push({ 
+        var notif100 = { 
           id: alertKey + '-100', 
           type: 'danger', 
           title: 'Budget Habis!',
-          msg: 'Target ' + t.name + ' sudah melewati budget (' + pct.toFixed(0) + '%)'
-        });
+          msg: 'Target ' + t.name + ' sudah melewati budget (' + pct.toFixed(0) + '%)',
+          timestamp: new Date().toLocaleString('id-ID')
+        };
+        newNotifs.push(notif100);
+        // Add to history if not already there
+        if (!notificationHistory.some(function(n) { return n.id === notif100.id; })) {
+          setNotificationHistory(function(prev) { return [notif100].concat(prev); });
+        }
       } else if (pct >= 75 && pct < 100 && !dismissedAlerts[alertKey + '-75']) {
-        newNotifs.push({ 
+        var notif75 = { 
           id: alertKey + '-75', 
           type: 'warning', 
           title: 'Peringatan Budget',
-          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget'
-        });
+          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget',
+          timestamp: new Date().toLocaleString('id-ID')
+        };
+        newNotifs.push(notif75);
+        if (!notificationHistory.some(function(n) { return n.id === notif75.id; })) {
+          setNotificationHistory(function(prev) { return [notif75].concat(prev); });
+        }
       } else if (pct >= 50 && pct < 75 && !dismissedAlerts[alertKey + '-50']) {
-        newNotifs.push({ 
+        var notif50 = { 
           id: alertKey + '-50', 
           type: 'info', 
           title: 'Info Budget',
-          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget'
-        });
+          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget',
+          timestamp: new Date().toLocaleString('id-ID')
+        };
+        newNotifs.push(notif50);
+        if (!notificationHistory.some(function(n) { return n.id === notif50.id; })) {
+          setNotificationHistory(function(prev) { return [notif50].concat(prev); });
+        }
       }
     }
     
@@ -173,26 +191,41 @@ export default function BudgetTracker({ user, onLogout }) {
     var lainnyaKey = currentPeriodKey + '-lainnya';
     
     if (pctLainnya >= 100 && !dismissedAlerts[lainnyaKey + '-100']) {
-      newNotifs.push({ 
+      var lNotif100 = { 
         id: lainnyaKey + '-100', 
         type: 'danger', 
         title: 'Budget Lainnya Habis!',
-        msg: 'Budget Lainnya sudah melewati target (' + pctLainnya.toFixed(0) + '%)'
-      });
+        msg: 'Budget Lainnya sudah melewati target (' + pctLainnya.toFixed(0) + '%)',
+        timestamp: new Date().toLocaleString('id-ID')
+      };
+      newNotifs.push(lNotif100);
+      if (!notificationHistory.some(function(n) { return n.id === lNotif100.id; })) {
+        setNotificationHistory(function(prev) { return [lNotif100].concat(prev); });
+      }
     } else if (pctLainnya >= 75 && pctLainnya < 100 && !dismissedAlerts[lainnyaKey + '-75']) {
-      newNotifs.push({ 
+      var lNotif75 = { 
         id: lainnyaKey + '-75', 
         type: 'warning', 
         title: 'Peringatan Budget Lainnya',
-        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target'
-      });
+        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target',
+        timestamp: new Date().toLocaleString('id-ID')
+      };
+      newNotifs.push(lNotif75);
+      if (!notificationHistory.some(function(n) { return n.id === lNotif75.id; })) {
+        setNotificationHistory(function(prev) { return [lNotif75].concat(prev); });
+      }
     } else if (pctLainnya >= 50 && pctLainnya < 75 && !dismissedAlerts[lainnyaKey + '-50']) {
-      newNotifs.push({ 
+      var lNotif50 = { 
         id: lainnyaKey + '-50', 
         type: 'info', 
         title: 'Info Budget Lainnya',
-        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target'
-      });
+        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target',
+        timestamp: new Date().toLocaleString('id-ID')
+      };
+      newNotifs.push(lNotif50);
+      if (!notificationHistory.some(function(n) { return n.id === lNotif50.id; })) {
+        setNotificationHistory(function(prev) { return [lNotif50].concat(prev); });
+      }
     }
     
     setNotifications(newNotifs);
@@ -254,22 +287,51 @@ export default function BudgetTracker({ user, onLogout }) {
     return spent;
   }
 
-  // Get breakdown of "Lainnya" subcategories
+  // Get breakdown of "Lainnya" subcategories (smart detection)
   function getLainnyaBreakdown() {
     var activeTrans = getActiveTransactions();
     var targetNames = targets.map(function(t) { return t.name; });
-    var breakdown = {};
+    var subcategories = {};
+    
+    // Keywords for subcategory detection
+    var keywords = {
+      'Makan': ['makan', 'nasi', 'ayam', 'bakso', 'soto', 'gado', 'sate', 'cafe', 'resto', 'kopi', 'teh', 'jus', 'minum', 'snack', 'gorengan', 'cemilan', 'jajan', 'warung', 'food', 'lunch', 'dinner', 'sarapan', 'breakfast'],
+      'Transport': ['grab', 'gojek', 'taxi', 'ojol', 'bensin', 'parkir', 'tol', 'busway', 'mrt', 'transjakarta', 'kereta', 'motor', 'mobil'],
+      'Belanja': ['beli', 'belanja', 'baju', 'celana', 'sepatu', 'tas', 'pakaian', 'fashion', 'outfit', 'shop', 'tokopedia', 'shopee', 'lazada'],
+      'Hiburan': ['nonton', 'bioskop', 'cinema', 'game', 'main', 'karaoke', 'ktv', 'concert', 'konser', 'spotify', 'netflix', 'disney'],
+      'Kesehatan': ['obat', 'dokter', 'rumah sakit', 'rs', 'klinik', 'apotek', 'vitamin', 'medical', 'checkup', 'periksa'],
+      'Lain-lain': []
+    };
     
     for (var i = 0; i < activeTrans.length; i++) {
       var t = activeTrans[i];
       if (t.type === 'pengeluaran' && targetNames.indexOf(t.category) === -1) {
-        breakdown[t.category] = (breakdown[t.category] || 0) + t.amount;
+        var desc = t.description.toLowerCase();
+        var matched = false;
+        
+        // Try to match with keywords
+        for (var subcat in keywords) {
+          var kws = keywords[subcat];
+          for (var j = 0; j < kws.length; j++) {
+            if (desc.indexOf(kws[j]) !== -1) {
+              subcategories[subcat] = (subcategories[subcat] || 0) + t.amount;
+              matched = true;
+              break;
+            }
+          }
+          if (matched) break;
+        }
+        
+        // If no match, put in Lain-lain
+        if (!matched) {
+          subcategories['Lain-lain'] = (subcategories['Lain-lain'] || 0) + t.amount;
+        }
       }
     }
     
     var result = [];
-    for (var cat in breakdown) {
-      result.push({ category: cat, amount: breakdown[cat] });
+    for (var cat in subcategories) {
+      result.push({ category: cat, amount: subcategories[cat] });
     }
     
     result.sort(function(a, b) { return b.amount - a.amount; });
@@ -770,6 +832,14 @@ export default function BudgetTracker({ user, onLogout }) {
             </p>
           </div>
           <div className="flex gap-2">
+            <button onClick={function() { setShowNotificationCenter(!showNotificationCenter); }} className="relative bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+              <Bell size={16} />
+              {notificationHistory.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {notificationHistory.length}
+                </span>
+              )}
+            </button>
             <button onClick={function() { setShowAllPeriods(!showAllPeriods); }} className={'px-3 py-2 rounded-lg text-sm font-semibold ' + (showAllPeriods ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700')}>
               {showAllPeriods ? '📚 Semua' : '📅 Periode Ini'}
             </button>
@@ -779,6 +849,56 @@ export default function BudgetTracker({ user, onLogout }) {
             </button>
           </div>
         </div>
+
+        {/* Notification Center Modal */}
+        {showNotificationCenter && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Bell size={24} />
+                  Riwayat Notifikasi
+                </h2>
+                <button onClick={function() { setShowNotificationCenter(false); }} className="text-gray-500 hover:text-gray-700">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              {notificationHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Belum ada notifikasi</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notificationHistory.map(function(notif) {
+                    var bgColor = notif.type === 'danger' ? 'bg-red-50 border-red-200' : notif.type === 'warning' ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200';
+                    var textColor = notif.type === 'danger' ? 'text-red-800' : notif.type === 'warning' ? 'text-yellow-800' : 'text-blue-800';
+                    var iconColor = notif.type === 'danger' ? 'text-red-600' : notif.type === 'warning' ? 'text-yellow-600' : 'text-blue-600';
+                    
+                    return (
+                      <div key={notif.id} className={'border rounded-lg p-3 ' + bgColor}>
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle size={18} className={'mt-0.5 flex-shrink-0 ' + iconColor} />
+                          <div className="flex-1">
+                            <p className={'font-bold text-sm ' + textColor}>{notif.title}</p>
+                            <p className={'text-xs mt-1 ' + textColor}>{notif.msg}</p>
+                            <p className="text-xs text-gray-500 mt-2">{notif.timestamp}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {notificationHistory.length > 0 && (
+                <button onClick={function() { setNotificationHistory([]); }} className="w-full mt-4 bg-gray-200 text-gray-700 py-2 rounded font-semibold text-sm hover:bg-gray-300">
+                  Hapus Semua Riwayat
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {showAnimation && (
           <div className="fixed top-20 right-4 z-50 animate-bounce">
@@ -812,30 +932,39 @@ export default function BudgetTracker({ user, onLogout }) {
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-4 mb-4 text-white">
           <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
             <BarChart3 size={20} />
-            Rata-rata Pengeluaran Harian
+            Analisis Kategori "Lainnya"
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white bg-opacity-20 rounded-lg p-3">
-              <p className="text-sm opacity-90 mb-1">Rata-rata per Hari</p>
+              <p className="text-sm opacity-90 mb-1">Rata-rata Pengeluaran per Hari</p>
               <p className="text-2xl font-bold">{formatCurrency(avgDaily)}</p>
               <p className="text-xs opacity-75 mt-1">Dari {Math.floor((new Date() - periodStart) / (1000 * 60 * 60 * 24)) + 1} hari periode ini</p>
             </div>
             <div className="bg-white bg-opacity-20 rounded-lg p-3">
-              <p className="text-sm opacity-90 mb-2">Breakdown Kategori "Lainnya"</p>
+              <p className="text-sm opacity-90 mb-2">Breakdown Sub-Kategori "Lainnya"</p>
               <div className="space-y-1 max-h-24 overflow-y-auto">
                 {lainnyaBreakdown.length === 0 ? (
                   <p className="text-xs opacity-75">Belum ada data</p>
                 ) : (
                   lainnyaBreakdown.map(function(item) {
+                    var percentage = spentLainnya > 0 ? ((item.amount / spentLainnya) * 100).toFixed(1) : 0;
                     return (
-                      <div key={item.category} className="flex justify-between text-xs">
-                        <span>{item.category}</span>
+                      <div key={item.category} className="flex justify-between text-xs items-center">
+                        <span className="flex items-center gap-1">
+                          <span className="font-semibold">{item.category}</span>
+                          <span className="opacity-75">({percentage}%)</span>
+                        </span>
                         <span className="font-semibold">{formatCurrency(item.amount)}</span>
                       </div>
                     );
                   })
                 )}
               </div>
+              {lainnyaBreakdown.length > 0 && (
+                <p className="text-xs opacity-75 mt-2 pt-2 border-t border-white border-opacity-30">
+                  Total "Lainnya": {formatCurrency(spentLainnya)}
+                </p>
+              )}
             </div>
           </div>
         </div>
