@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Target, Edit2, Check, X, Zap, Calendar, Filter, Download, Search, AlertTriangle, CheckCircle, LogOut } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Target, Edit2, Check, X, Zap, Calendar, Filter, Download, Search, AlertTriangle, CheckCircle, LogOut, Bell, XCircle, BarChart3, TrendingDown as TrendDown } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
 
@@ -24,6 +24,9 @@ export default function BudgetTracker({ user, onLogout }) {
   const [showAnimation, setShowAnimation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showAllPeriods, setShowAllPeriods] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState({});
 
   const allCategories = ['Makanan', 'Transport', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Ortu', 'Tabungan', 'Cicilan', 'Lainnya'];
   const incomeCategories = ['Gaji', 'Bonus', 'Hadiah', 'Lainnya'];
@@ -35,7 +38,6 @@ export default function BudgetTracker({ user, onLogout }) {
     var year = today.getFullYear();
     var month = today.getMonth();
     
-    // If today is before 25th, period started on 25th of last month
     if (today.getDate() < 25) {
       month = month - 1;
       if (month < 0) {
@@ -45,6 +47,18 @@ export default function BudgetTracker({ user, onLogout }) {
     }
     
     return new Date(year, month, 25, 0, 0, 0);
+  }
+
+  // Get previous period dates
+  function getPreviousPeriodDates() {
+    var currentStart = getCurrentPeriodStart();
+    var prevStart = new Date(currentStart);
+    prevStart.setMonth(prevStart.getMonth() - 1);
+    
+    var prevEnd = new Date(currentStart);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    
+    return { start: prevStart, end: prevEnd };
   }
 
   // Parse date string to Date object
@@ -60,13 +74,25 @@ export default function BudgetTracker({ user, onLogout }) {
     return transDate >= periodStart;
   }
 
+  // Check if transaction is in previous period
+  function isInPreviousPeriod(dateStr) {
+    var prev = getPreviousPeriodDates();
+    var transDate = parseDate(dateStr);
+    return transDate >= prev.start && transDate <= prev.end;
+  }
+
   // Get transactions for display (filtered by period if needed)
   function getActiveTransactions() {
     if (showAllPeriods) return transactions;
     return transactions.filter(function(t) { return isInCurrentPeriod(t.date); });
   }
 
-  // Load from Firebase - ONLY ONCE
+  // Get previous period transactions
+  function getPreviousPeriodTransactions() {
+    return transactions.filter(function(t) { return isInPreviousPeriod(t.date); });
+  }
+
+  // Load from Firebase
   useEffect(function() {
     if (!user) return;
     
@@ -104,6 +130,87 @@ export default function BudgetTracker({ user, onLogout }) {
       unsub3();
     };
   }, [user]);
+
+  // Check for budget alerts and create notifications
+  useEffect(function() {
+    var newNotifs = [];
+    var currentPeriodKey = getCurrentPeriodStart().toISOString();
+    
+    // Check targets
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      var spent = getSpent(t.name);
+      var pct = (spent / t.target) * 100;
+      var alertKey = currentPeriodKey + '-' + t.name;
+      
+      if (pct >= 100 && !dismissedAlerts[alertKey + '-100']) {
+        newNotifs.push({ 
+          id: alertKey + '-100', 
+          type: 'danger', 
+          title: 'Budget Habis!',
+          msg: 'Target ' + t.name + ' sudah melewati budget (' + pct.toFixed(0) + '%)'
+        });
+      } else if (pct >= 75 && pct < 100 && !dismissedAlerts[alertKey + '-75']) {
+        newNotifs.push({ 
+          id: alertKey + '-75', 
+          type: 'warning', 
+          title: 'Peringatan Budget',
+          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget'
+        });
+      } else if (pct >= 50 && pct < 75 && !dismissedAlerts[alertKey + '-50']) {
+        newNotifs.push({ 
+          id: alertKey + '-50', 
+          type: 'info', 
+          title: 'Info Budget',
+          msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '% dari budget'
+        });
+      }
+    }
+    
+    // Check Lainnya budget
+    var spentLainnya = getSpentLainnya();
+    var pctLainnya = (spentLainnya / budgetLainnya) * 100;
+    var lainnyaKey = currentPeriodKey + '-lainnya';
+    
+    if (pctLainnya >= 100 && !dismissedAlerts[lainnyaKey + '-100']) {
+      newNotifs.push({ 
+        id: lainnyaKey + '-100', 
+        type: 'danger', 
+        title: 'Budget Lainnya Habis!',
+        msg: 'Budget Lainnya sudah melewati target (' + pctLainnya.toFixed(0) + '%)'
+      });
+    } else if (pctLainnya >= 75 && pctLainnya < 100 && !dismissedAlerts[lainnyaKey + '-75']) {
+      newNotifs.push({ 
+        id: lainnyaKey + '-75', 
+        type: 'warning', 
+        title: 'Peringatan Budget Lainnya',
+        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target'
+      });
+    } else if (pctLainnya >= 50 && pctLainnya < 75 && !dismissedAlerts[lainnyaKey + '-50']) {
+      newNotifs.push({ 
+        id: lainnyaKey + '-50', 
+        type: 'info', 
+        title: 'Info Budget Lainnya',
+        msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '% dari target'
+      });
+    }
+    
+    setNotifications(newNotifs);
+  }, [transactions, targets, budgetLainnya, dismissedAlerts]);
+
+  function dismissNotification(id) {
+    setDismissedAlerts(function(prev) {
+      var updated = {};
+      for (var key in prev) {
+        updated[key] = prev[key];
+      }
+      updated[id] = true;
+      return updated;
+    });
+    setNotifications(function(prev) {
+      return prev.filter(function(n) { return n.id !== id; });
+    });
+  }
 
   // Save transactions
   function saveTransactions(newTrans) {
@@ -147,6 +254,45 @@ export default function BudgetTracker({ user, onLogout }) {
     return spent;
   }
 
+  // Get breakdown of "Lainnya" subcategories
+  function getLainnyaBreakdown() {
+    var activeTrans = getActiveTransactions();
+    var targetNames = targets.map(function(t) { return t.name; });
+    var breakdown = {};
+    
+    for (var i = 0; i < activeTrans.length; i++) {
+      var t = activeTrans[i];
+      if (t.type === 'pengeluaran' && targetNames.indexOf(t.category) === -1) {
+        breakdown[t.category] = (breakdown[t.category] || 0) + t.amount;
+      }
+    }
+    
+    var result = [];
+    for (var cat in breakdown) {
+      result.push({ category: cat, amount: breakdown[cat] });
+    }
+    
+    result.sort(function(a, b) { return b.amount - a.amount; });
+    return result;
+  }
+
+  // Get average daily spending for current period
+  function getAverageDailySpending() {
+    var activeTrans = getActiveTransactions();
+    var periodStart = getCurrentPeriodStart();
+    var today = new Date();
+    var daysPassed = Math.floor((today - periodStart) / (1000 * 60 * 60 * 24)) + 1;
+    
+    var totalSpent = 0;
+    for (var i = 0; i < activeTrans.length; i++) {
+      if (activeTrans[i].type === 'pengeluaran') {
+        totalSpent += activeTrans[i].amount;
+      }
+    }
+    
+    return daysPassed > 0 ? totalSpent / daysPassed : 0;
+  }
+
   // Get today's expense
   function getTodayExpense() {
     var activeTrans = getActiveTransactions();
@@ -158,6 +304,66 @@ export default function BudgetTracker({ user, onLogout }) {
       }
     }
     return sum;
+  }
+
+  // Get monthly spending trend (last 6 months)
+  function getMonthlyTrend() {
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var data = [];
+    var today = new Date();
+    
+    for (var i = 5; i >= 0; i--) {
+      var d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      var monthKey = d.getMonth();
+      var yearKey = d.getFullYear();
+      
+      var monthExpense = 0;
+      var monthIncome = 0;
+      
+      for (var j = 0; j < transactions.length; j++) {
+        var t = transactions[j];
+        var tDate = parseDate(t.date);
+        
+        if (tDate.getMonth() === monthKey && tDate.getFullYear() === yearKey) {
+          if (t.type === 'pengeluaran') monthExpense += t.amount;
+          if (t.type === 'pemasukan') monthIncome += t.amount;
+        }
+      }
+      
+      data.push({
+        month: months[monthKey] + ' ' + yearKey.toString().substr(2),
+        Pengeluaran: monthExpense,
+        Pemasukan: monthIncome
+      });
+    }
+    
+    return data;
+  }
+
+  // Get comparison data (current vs previous period)
+  function getComparisonData() {
+    var currentTrans = getActiveTransactions();
+    var prevTrans = getPreviousPeriodTransactions();
+    
+    var currentExpense = 0;
+    var currentIncome = 0;
+    var prevExpense = 0;
+    var prevIncome = 0;
+    
+    for (var i = 0; i < currentTrans.length; i++) {
+      if (currentTrans[i].type === 'pengeluaran') currentExpense += currentTrans[i].amount;
+      if (currentTrans[i].type === 'pemasukan') currentIncome += currentTrans[i].amount;
+    }
+    
+    for (var j = 0; j < prevTrans.length; j++) {
+      if (prevTrans[j].type === 'pengeluaran') prevExpense += prevTrans[j].amount;
+      if (prevTrans[j].type === 'pemasukan') prevIncome += prevTrans[j].amount;
+    }
+    
+    return [
+      { period: 'Periode Lalu', Pengeluaran: prevExpense, Pemasukan: prevIncome },
+      { period: 'Periode Ini', Pengeluaran: currentExpense, Pemasukan: currentIncome }
+    ];
   }
 
   // Get weekly data for chart
@@ -225,7 +431,6 @@ export default function BudgetTracker({ user, onLogout }) {
     for (var i = 0; i < transToUse.length; i++) {
       var t = transToUse[i];
       
-      // Search filter
       if (searchQuery) {
         var q = searchQuery.toLowerCase();
         if (t.description.toLowerCase().indexOf(q) === -1 && t.category.toLowerCase().indexOf(q) === -1) {
@@ -233,7 +438,6 @@ export default function BudgetTracker({ user, onLogout }) {
         }
       }
       
-      // Date filter
       if (filterStartDate || filterEndDate) {
         var tDate = parseDate(t.date);
         var start = filterStartDate ? new Date(filterStartDate) : null;
@@ -296,7 +500,6 @@ export default function BudgetTracker({ user, onLogout }) {
   function detectCategory(desc) {
     var ld = desc.toLowerCase();
     
-    // Check if matches any target keywords
     for (var i = 0; i < targets.length; i++) {
       var tg = targets[i];
       if (tg.keywords) {
@@ -306,25 +509,22 @@ export default function BudgetTracker({ user, onLogout }) {
       }
     }
     
-    // If no target match, default to Lainnya
     return 'Lainnya';
   }
 
-  // Bulk input handler - support custom date
+  // Bulk input handler
   function handleBulkInput() {
     if (!bulkInput.trim()) return;
     var lines = bulkInput.split('\n');
     var newTrans = [];
-    var currentDate = new Date().toLocaleDateString('id-ID'); // default hari ini
+    var currentDate = new Date().toLocaleDateString('id-ID');
     
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
       
-      // Check if line is a date header (format: dd/mm: atau dd/mm)
       var dateMatch = line.match(/^(\d{1,2})\/(\d{1,2}):?$/);
       if (dateMatch) {
-        // This is a date header, set current date
         var day = dateMatch[1].padStart(2, '0');
         var month = dateMatch[2].padStart(2, '0');
         var year = new Date().getFullYear();
@@ -332,7 +532,6 @@ export default function BudgetTracker({ user, onLogout }) {
         continue;
       }
       
-      // Parse transaction line
       var parts = line.split(',');
       if (parts.length >= 2) {
         var desc = parts[0].trim();
@@ -374,6 +573,29 @@ export default function BudgetTracker({ user, onLogout }) {
     triggerAnimation();
   }
 
+  // Edit transaction handler
+  function handleEditTrans() {
+    if (!editingTransaction) return;
+    
+    var updated = transactions.map(function(t) {
+      if (t.id === editingTransaction.id) {
+        return {
+          id: t.id,
+          description: editingTransaction.description,
+          amount: parseFloat(editingTransaction.amount),
+          category: editingTransaction.category,
+          type: editingTransaction.type,
+          date: t.date
+        };
+      }
+      return t;
+    });
+    
+    saveTransactions(updated);
+    setEditingTransaction(null);
+    triggerAnimation();
+  }
+
   function triggerAnimation() {
     setShowAnimation(true);
     setTimeout(function() { setShowAnimation(false); }, 1000);
@@ -406,35 +628,23 @@ export default function BudgetTracker({ user, onLogout }) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   }
 
-  // Get alerts
-  function getAlerts() {
-    var alerts = [];
-    for (var i = 0; i < targets.length; i++) {
-      var t = targets[i];
-      var spent = getSpent(t.name);
-      var pct = (spent / t.target) * 100;
-      if (pct >= 100) alerts.push({ type: 'danger', msg: 'Target ' + t.name + ' melewati budget!' });
-      else if (pct >= 80) alerts.push({ type: 'warning', msg: 'Target ' + t.name + ' sudah ' + pct.toFixed(0) + '%' });
-    }
-    var spentLainnya = getSpentLainnya();
-    var pctLainnya = (spentLainnya / budgetLainnya) * 100;
-    if (pctLainnya >= 100) alerts.push({ type: 'danger', msg: 'Budget Lainnya melewati target!' });
-    else if (pctLainnya >= 80) alerts.push({ type: 'warning', msg: 'Budget Lainnya sudah ' + pctLainnya.toFixed(0) + '%' });
-    return alerts;
-  }
-
   var totalIncome = getTotalIncome();
   var totalExpense = getTotalExpense();
   var todayExpense = getTodayExpense();
   var balance = totalIncome - totalExpense;
   var filteredTrans = getFilteredTransactions();
   var pieData = getPieData();
-  var alerts = getAlerts();
   var spentLainnya = getSpentLainnya();
   var weeklyData = getWeeklyData();
   var filteredExpense = getFilteredExpense();
   var periodStart = getCurrentPeriodStart();
   var activeTrans = getActiveTransactions();
+  var avgDaily = getAverageDailySpending();
+  var lainnyaBreakdown = getLainnyaBreakdown();
+  var monthlyTrend = getMonthlyTrend();
+  var comparisonData = getComparisonData();
+  var prevPeriod = getPreviousPeriodDates();
+  var prevTrans = getPreviousPeriodTransactions();
 
   if (isLoading) {
     return (
@@ -451,18 +661,117 @@ export default function BudgetTracker({ user, onLogout }) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
         
-        <div className="flex items-center justify-between mb-4">
+        {/* Notifications */}
+        {notifications.length > 0 && (
+          <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+            {notifications.map(function(notif) {
+              var bgColor = notif.type === 'danger' ? 'bg-red-500' : notif.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
+              return (
+                <div key={notif.id} className={'animate-slide-in-right ' + bgColor + ' text-white p-4 rounded-lg shadow-lg'}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <Bell size={20} className="mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-bold text-sm">{notif.title}</p>
+                        <p className="text-xs mt-1 opacity-90">{notif.msg}</p>
+                      </div>
+                    </div>
+                    <button onClick={function() { dismissNotification(notif.id); }} className="flex-shrink-0 hover:bg-white hover:bg-opacity-20 rounded p-1">
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Edit Modal */}
+        {editingTransaction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-xl font-bold mb-4">Edit Transaksi</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tipe</label>
+                  <select value={editingTransaction.type} onChange={function(e) { 
+                    setEditingTransaction({ 
+                      id: editingTransaction.id,
+                      description: editingTransaction.description,
+                      amount: editingTransaction.amount,
+                      category: e.target.value === 'pemasukan' ? 'Gaji' : 'Makanan',
+                      type: e.target.value
+                    }); 
+                  }} className="w-full px-3 py-2 border rounded">
+                    <option value="pengeluaran">Pengeluaran</option>
+                    <option value="pemasukan">Pemasukan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Kategori</label>
+                  <select value={editingTransaction.category} onChange={function(e) { 
+                    setEditingTransaction({ 
+                      id: editingTransaction.id,
+                      description: editingTransaction.description,
+                      amount: editingTransaction.amount,
+                      category: e.target.value,
+                      type: editingTransaction.type
+                    }); 
+                  }} className="w-full px-3 py-2 border rounded">
+                    {(editingTransaction.type === 'pemasukan' ? incomeCategories : allCategories).map(function(c) { 
+                      return <option key={c} value={c}>{c}</option>; 
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Deskripsi</label>
+                  <input type="text" value={editingTransaction.description} onChange={function(e) { 
+                    setEditingTransaction({ 
+                      id: editingTransaction.id,
+                      description: e.target.value,
+                      amount: editingTransaction.amount,
+                      category: editingTransaction.category,
+                      type: editingTransaction.type
+                    }); 
+                  }} className="w-full px-3 py-2 border rounded" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Jumlah</label>
+                  <input type="number" value={editingTransaction.amount} onChange={function(e) { 
+                    setEditingTransaction({ 
+                      id: editingTransaction.id,
+                      description: editingTransaction.description,
+                      amount: e.target.value,
+                      category: editingTransaction.category,
+                      type: editingTransaction.type
+                    }); 
+                  }} className="w-full px-3 py-2 border rounded" />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button onClick={handleEditTrans} className="flex-1 bg-blue-600 text-white py-2 rounded font-semibold">
+                  Simpan
+                </button>
+                <button onClick={function() { setEditingTransaction(null); }} className="flex-1 bg-gray-200 text-gray-700 py-2 rounded font-semibold">
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">💰 Budget Tracker</h1>
             <p className="text-xs text-gray-500 mt-1">
               Periode: {periodStart.toLocaleDateString('id-ID')} - {new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 24).toLocaleDateString('id-ID')}
-              {!showAllPeriods && <span className="ml-2 text-blue-600">({activeTrans.length} transaksi periode ini)</span>}
-              {showAllPeriods && <span className="ml-2 text-purple-600">({transactions.length} transaksi total)</span>}
+              {!showAllPeriods && <span className="ml-2 text-blue-600">({activeTrans.length} transaksi)</span>}
+              {showAllPeriods && <span className="ml-2 text-purple-600">({transactions.length} total)</span>}
             </p>
           </div>
           <div className="flex gap-2">
             <button onClick={function() { setShowAllPeriods(!showAllPeriods); }} className={'px-3 py-2 rounded-lg text-sm font-semibold ' + (showAllPeriods ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700')}>
-              {showAllPeriods ? '📚 Semua Periode' : '📅 Periode Ini'}
+              {showAllPeriods ? '📚 Semua' : '📅 Periode Ini'}
             </button>
             <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
               <LogOut size={16} />
@@ -470,19 +779,6 @@ export default function BudgetTracker({ user, onLogout }) {
             </button>
           </div>
         </div>
-
-        {alerts.length > 0 && (
-          <div className="mb-4 space-y-2">
-            {alerts.map(function(a, i) {
-              return (
-                <div key={i} className={'p-3 rounded-lg flex items-center gap-2 ' + (a.type === 'danger' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')}>
-                  <AlertTriangle size={20} />
-                  <p className="text-sm font-medium">{a.msg}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
 
         {showAnimation && (
           <div className="fixed top-20 right-4 z-50 animate-bounce">
@@ -493,23 +789,111 @@ export default function BudgetTracker({ user, onLogout }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-xs text-gray-600">Pemasukan</p>
-            <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
+            <p className="text-lg sm:text-xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-xs text-gray-600">Pengeluaran</p>
-            <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpense)}</p>
+            <p className="text-lg sm:text-xl font-bold text-red-600">{formatCurrency(totalExpense)}</p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-xs text-gray-600">Saldo</p>
-            <p className={'text-xl font-bold ' + (balance >= 0 ? 'text-blue-600' : 'text-red-600')}>{formatCurrency(balance)}</p>
+            <p className={'text-lg sm:text-xl font-bold ' + (balance >= 0 ? 'text-blue-600' : 'text-red-600')}>{formatCurrency(balance)}</p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4 border-2 border-orange-200">
             <p className="text-xs text-gray-600">📅 Hari Ini</p>
-            <p className="text-xl font-bold text-orange-600">{formatCurrency(todayExpense)}</p>
+            <p className="text-lg sm:text-xl font-bold text-orange-600">{formatCurrency(todayExpense)}</p>
           </div>
+        </div>
+
+        {/* Average Daily Spending + Lainnya Breakdown */}
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-4 mb-4 text-white">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            <BarChart3 size={20} />
+            Rata-rata Pengeluaran Harian
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <p className="text-sm opacity-90 mb-1">Rata-rata per Hari</p>
+              <p className="text-2xl font-bold">{formatCurrency(avgDaily)}</p>
+              <p className="text-xs opacity-75 mt-1">Dari {Math.floor((new Date() - periodStart) / (1000 * 60 * 60 * 24)) + 1} hari periode ini</p>
+            </div>
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <p className="text-sm opacity-90 mb-2">Breakdown Kategori "Lainnya"</p>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {lainnyaBreakdown.length === 0 ? (
+                  <p className="text-xs opacity-75">Belum ada data</p>
+                ) : (
+                  lainnyaBreakdown.map(function(item) {
+                    return (
+                      <div key={item.category} className="flex justify-between text-xs">
+                        <span>{item.category}</span>
+                        <span className="font-semibold">{formatCurrency(item.amount)}</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Monthly Spending Trend */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <TrendDown size={20} className="text-blue-600" />
+            Tren Pengeluaran Bulanan (6 Bulan Terakhir)
+          </h2>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthlyTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" style={{ fontSize: '11px' }} />
+              <YAxis style={{ fontSize: '10px' }} />
+              <Tooltip formatter={function(v) { return formatCurrency(v); }} />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Line type="monotone" dataKey="Pengeluaran" stroke="#ef4444" strokeWidth={2} />
+              <Line type="monotone" dataKey="Pemasukan" stroke="#10b981" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Comparison Chart */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <TrendingUp size={20} className="text-purple-600" />
+            Perbandingan Periode
+          </h2>
+          <div className="text-xs text-gray-600 mb-3">
+            <span className="font-semibold">Periode Lalu:</span> {prevPeriod.start.toLocaleDateString('id-ID')} - {prevPeriod.end.toLocaleDateString('id-ID')} ({prevTrans.length} transaksi)
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={comparisonData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" style={{ fontSize: '11px' }} />
+              <YAxis style={{ fontSize: '10px' }} />
+              <Tooltip formatter={function(v) { return formatCurrency(v); }} />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Bar dataKey="Pengeluaran" fill="#ef4444" />
+              <Bar dataKey="Pemasukan" fill="#10b981" />
+            </BarChart>
+          </ResponsiveContainer>
+          {comparisonData[1].Pengeluaran > 0 && comparisonData[0].Pengeluaran > 0 && (
+            <div className="mt-3 text-sm">
+              {comparisonData[1].Pengeluaran > comparisonData[0].Pengeluaran ? (
+                <p className="text-red-600">
+                  📈 Pengeluaran naik {formatCurrency(comparisonData[1].Pengeluaran - comparisonData[0].Pengeluaran)} 
+                  ({((comparisonData[1].Pengeluaran / comparisonData[0].Pengeluaran - 1) * 100).toFixed(1)}%) vs periode lalu
+                </p>
+              ) : (
+                <p className="text-green-600">
+                  📉 Pengeluaran turun {formatCurrency(comparisonData[0].Pengeluaran - comparisonData[1].Pengeluaran)} 
+                  ({((1 - comparisonData[1].Pengeluaran / comparisonData[0].Pengeluaran) * 100).toFixed(1)}%) vs periode lalu
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-4 mb-4">
@@ -525,50 +909,6 @@ export default function BudgetTracker({ user, onLogout }) {
               <Bar dataKey="Pemasukan" fill="#10b981" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <h2 className="text-lg font-semibold mb-3">🔍 Filter Berdasarkan Tanggal</h2>
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Dari Tanggal</label>
-              <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Sampai Tanggal</label>
-              <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
-            </div>
-            {(filterStartDate || filterEndDate) && (
-              <button onClick={function() { setFilterStartDate(''); setFilterEndDate(''); }} className="px-3 py-2 bg-gray-200 text-gray-700 rounded text-sm">
-                Reset
-              </button>
-            )}
-          </div>
-          
-          {filteredExpense && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    Total Pengeluaran 
-                    {filterStartDate && filterEndDate && (
-                      <span className="font-semibold"> ({filterStartDate} s/d {filterEndDate})</span>
-                    )}
-                    {filterStartDate && !filterEndDate && (
-                      <span className="font-semibold"> (dari {filterStartDate})</span>
-                    )}
-                    {!filterStartDate && filterEndDate && (
-                      <span className="font-semibold"> (sampai {filterEndDate})</span>
-                    )}
-                  </p>
-                  <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredExpense.total)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500">{filteredExpense.count} transaksi</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg shadow-lg p-4 mb-4 text-white">
@@ -653,7 +993,7 @@ export default function BudgetTracker({ user, onLogout }) {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-64 overflow-y-auto">
               {targets.map(function(tg) {
                 var spent = getSpent(tg.name);
                 var pct = (spent / tg.target) * 100;
@@ -757,34 +1097,11 @@ export default function BudgetTracker({ user, onLogout }) {
               </button>
             </div>
             <input type="text" value={searchQuery} onChange={function(e) { setSearchQuery(e.target.value); }} placeholder="Cari deskripsi/kategori..." className="w-full px-3 py-2 border rounded text-sm mb-2" />
-            
-            <div className="flex gap-2 mb-3">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Dari</label>
-                <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Sampai</label>
-                <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="w-full px-2 py-1 border rounded text-xs" />
-              </div>
-              {(filterStartDate || filterEndDate) && (
-                <button onClick={function() { setFilterStartDate(''); setFilterEndDate(''); }} className="self-end px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs mb-0.5">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            {filteredExpense && (
-              <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
-                <p className="text-xs text-gray-600">Total Pengeluaran (filtered)</p>
-                <p className="text-lg font-bold text-red-600">{formatCurrency(filteredExpense.total)}</p>
-              </div>
-            )}
 
             {filteredTrans.length === 0 ? (
               <p className="text-gray-500 text-center py-8 text-sm">Belum ada transaksi</p>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredTrans.map(function(t) {
                   return (
                     <div key={t.id} className="flex items-center justify-between p-2 border rounded text-sm hover:bg-gray-50">
@@ -796,10 +1113,21 @@ export default function BudgetTracker({ user, onLogout }) {
                         <span className="text-gray-800">{t.description}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={t.type === 'pemasukan' ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                        <span className={t.type === 'pemasukan' ? 'text-green-600 font-semibold text-sm' : 'text-red-600 font-semibold text-sm'}>
                           {t.type === 'pemasukan' ? '+' : '-'}{formatCurrency(t.amount)}
                         </span>
-                        <button onClick={function() { deleteTrans(t.id); }} className="text-red-500">
+                        <button onClick={function() { 
+                          setEditingTransaction({
+                            id: t.id,
+                            description: t.description,
+                            amount: t.amount,
+                            category: t.category,
+                            type: t.type
+                          }); 
+                        }} className="text-blue-500 hover:text-blue-700">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={function() { deleteTrans(t.id); }} className="text-red-500 hover:text-red-700">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -814,6 +1142,22 @@ export default function BudgetTracker({ user, onLogout }) {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes slide-in-right {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in-right {
+          animation: slide-in-right 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
