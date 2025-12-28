@@ -911,6 +911,50 @@ export default function BudgetTracker({ user, onLogout }) {
           </ResponsiveContainer>
         </div>
 
+        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold mb-3">🔍 Filter Berdasarkan Tanggal</h2>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Dari Tanggal</label>
+              <input type="date" value={filterStartDate} onChange={function(e) { setFilterStartDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Sampai Tanggal</label>
+              <input type="date" value={filterEndDate} onChange={function(e) { setFilterEndDate(e.target.value); }} className="px-3 py-2 border rounded text-sm" />
+            </div>
+            {(filterStartDate || filterEndDate) && (
+              <button onClick={function() { setFilterStartDate(''); setFilterEndDate(''); }} className="px-3 py-2 bg-gray-200 text-gray-700 rounded text-sm">
+                Reset
+              </button>
+            )}
+          </div>
+          
+          {filteredExpense && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">
+                    Total Pengeluaran 
+                    {filterStartDate && filterEndDate && (
+                      <span className="font-semibold"> ({filterStartDate} s/d {filterEndDate})</span>
+                    )}
+                    {filterStartDate && !filterEndDate && (
+                      <span className="font-semibold"> (dari {filterStartDate})</span>
+                    )}
+                    {!filterStartDate && filterEndDate && (
+                      <span className="font-semibold"> (sampai {filterEndDate})</span>
+                    )}
+                  </p>
+                  <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredExpense.total)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">{filteredExpense.count} transaksi</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg shadow-lg p-4 mb-4 text-white">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
