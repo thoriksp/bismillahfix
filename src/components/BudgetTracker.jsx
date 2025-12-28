@@ -295,16 +295,16 @@ export default function BudgetTracker({ user, onLogout }) {
     
     // Keywords for subcategory detection
     var keywords = {
-      'Makan': ['makan', 'nasi', 'ayam', 'bakso', 'soto', 'gado', 'sate', 'cafe', 'resto', 'kopi', 'teh', 'jus', 'minum', 'snack', 'gorengan', 'cemilan', 'jajan', 'warung', 'food', 'lunch', 'dinner', 'sarapan', 'breakfast'],
-      'Transport': ['grab', 'gojek', 'taxi', 'ojol', 'bensin', 'parkir', 'tol', 'busway', 'mrt', 'transjakarta', 'kereta', 'motor', 'mobil'],
-      'Belanja': ['beli', 'belanja', 'baju', 'celana', 'sepatu', 'tas', 'pakaian', 'fashion', 'outfit', 'shop', 'tokopedia', 'shopee', 'lazada'],
-      'Hiburan': ['nonton', 'bioskop', 'cinema', 'game', 'main', 'karaoke', 'ktv', 'concert', 'konser', 'spotify', 'netflix', 'disney'],
-      'Kesehatan': ['obat', 'dokter', 'rumah sakit', 'rs', 'klinik', 'apotek', 'vitamin', 'medical', 'checkup', 'periksa'],
-      'Lain-lain': []
+      'Makan & Minum': ['makan', 'nasi', 'ayam', 'bakso', 'soto', 'gado', 'sate', 'cafe', 'resto', 'kopi', 'teh', 'jus', 'minum', 'snack', 'gorengan', 'cemilan', 'jajan', 'warung', 'food', 'lunch', 'dinner', 'sarapan', 'breakfast', 'pizza', 'burger', 'seafood', 'padang', 'chinese', 'sushi', 'martabak', 'gudeg', 'bubur'],
+      'Transport': ['grab', 'gojek', 'taxi', 'ojol', 'ojek', 'bensin', 'parkir', 'tol', 'busway', 'mrt', 'transjakarta', 'kereta', 'motor', 'mobil', 'uber', 'maxim', 'travel', 'angkot', 'bus'],
+      'Belanja': ['beli', 'belanja', 'baju', 'celana', 'sepatu', 'tas', 'pakaian', 'fashion', 'outfit', 'shop', 'tokopedia', 'shopee', 'lazada', 'bukalapak', 'blibli', 'toped', 'shopping', 'mall', 'store'],
+      'Hiburan': ['nonton', 'bioskop', 'cinema', 'game', 'main', 'karaoke', 'ktv', 'concert', 'konser', 'spotify', 'netflix', 'disney', 'youtube', 'steam', 'playstation', 'xbox', 'hiburan', 'jalan', 'liburan', 'wisata'],
+      'Kesehatan': ['obat', 'dokter', 'rumah sakit', 'rs', 'klinik', 'apotek', 'vitamin', 'medical', 'checkup', 'periksa', 'hospital', 'farmasi', 'terapi', 'fisio']
     };
     
     for (var i = 0; i < activeTrans.length; i++) {
       var t = activeTrans[i];
+      // Only process transactions in "Lainnya" main category (not in target categories)
       if (t.type === 'pengeluaran' && targetNames.indexOf(t.category) === -1) {
         var desc = t.description.toLowerCase();
         var matched = false;
@@ -322,9 +322,17 @@ export default function BudgetTracker({ user, onLogout }) {
           if (matched) break;
         }
         
-        // If no match, put in Lain-lain
+        // If no match, still count it but we'll show it separately or group as "Lainnya"
         if (!matched) {
-          subcategories['Lain-lain'] = (subcategories['Lain-lain'] || 0) + t.amount;
+          // Check if it's actually from non-Lainnya category (Makanan, Transport, etc from main categories)
+          // If the main category is not in targets, we should still categorize it
+          if (t.category !== 'Lainnya') {
+            // Use the original category as subcategory
+            subcategories[t.category] = (subcategories[t.category] || 0) + t.amount;
+          } else {
+            // Truly unmatched items go to "Lain-lain"
+            subcategories['Lain-lain'] = (subcategories['Lain-lain'] || 0) + t.amount;
+          }
         }
       }
     }
